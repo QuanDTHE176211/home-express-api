@@ -2,40 +2,215 @@ spring:
   application:
     name: home-express-api
 
+  config:
+    import: optional:file:.env[.properties]
+
   datasource:
-    url: jdbc:mysql://localhost:3306/home_express
-    username: homeexpress
-    password: homeexpress123
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:none}
+    show-sql: ${SPRING_JPA_SHOW_SQL:false}
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.MySQL8Dialect
+        format-sql: ${SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL:false}
+        # dialect - Removed: Hibernate auto-detects MySQL dialect
+    open-in-view: false
 
-  security:
-    user:
-      name: admin
-      password: admin123
+  flyway:
+    enabled: ${SPRING_FLYWAY_ENABLED:false}
+    locations: ${SPRING_FLYWAY_LOCATIONS:classpath:db/migration}
+    baseline-on-migrate: ${SPRING_FLYWAY_BASELINE_ON_MIGRATE:false}
+    validate-on-migrate: ${SPRING_FLYWAY_VALIDATE_ON_MIGRATE:false}
+    validate-migration-naming: false
+    out-of-order: ${SPRING_FLYWAY_OUT_OF_ORDER:false}
+    clean-disabled: ${SPRING_FLYWAY_CLEAN_DISABLED:true}
+    ignore-migration-patterns: ${SPRING_FLYWAY_IGNORE_MIGRATION_PATTERNS:*:ignored}
+
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+      repositories:
+        enabled: false
 
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: dummy@example.com
-    password: dummy
+    host: ${SPRING_MAIL_HOST:}
+    port: ${SPRING_MAIL_PORT:}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
-          auth: true
+          auth: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:true}
           starttls:
-            enable: true
+            enable: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:true}
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 20MB
+      max-request-size: 20MB
+
+  # Security Configuration
+  # Disable default Spring Security user (we use JWT authentication)
+  security:
+    user:
+      name: disabled
+      password: disabled
+
 server:
-  port: 8081
+  port: ${SERVER_PORT:8084}
 
 logging:
   level:
-    com.homeexpress.api: DEBUG
-    org.springframework.security: DEBUG
+    com.homeexpress: ${LOGGING_LEVEL_COM_HOMEEXPRESS:INFO}
+    org.springframework.security: ${LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY:INFO}
+    root: ${LOGGING_LEVEL_ROOT:INFO}
+  file:
+    name: ${LOGGING_FILE_NAME:}
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:}
+  access-token-expiration-ms: ${JWT_ACCESS_TOKEN_EXPIRATION_MS:3600000}
+  refresh-token-expiration-ms: ${JWT_REFRESH_TOKEN_EXPIRATION_MS:604800000}
+
+# Encryption Configuration (AES-256-GCM for payment data)
+encryption:
+  master-key: ${ENCRYPTION_MASTER_KEY:}
+  key-rotation-enabled: ${ENCRYPTION_KEY_ROTATION_ENABLED:false}
+  key-rotation-days: ${ENCRYPTION_KEY_ROTATION_DAYS:90}
+  algorithm: ${ENCRYPTION_ALGORITHM:AES/GCM/NoPadding}
+  key-size: ${ENCRYPTION_KEY_SIZE:256}
+  gcm-tag-length: ${ENCRYPTION_GCM_TAG_LENGTH:128}
+  iv-length: ${ENCRYPTION_IV_LENGTH:12}
+  encrypt-payment-amounts: ${ENCRYPTION_ENCRYPT_PAYMENT_AMOUNTS:true}
+  encrypt-transaction-ids: ${ENCRYPTION_ENCRYPT_TRANSACTION_IDS:true}
+  encrypt-bank-accounts: ${ENCRYPTION_ENCRYPT_BANK_ACCOUNTS:true}
+  encrypt-settlement-amounts: ${ENCRYPTION_ENCRYPT_SETTLEMENT_AMOUNTS:true}
+
+# OpenAI API Configuration
+openai:
+  api:
+    key: ${OPENAI_API_KEY:}
+    url: ${OPENAI_API_URL:https://api.openai.com/v1/chat/completions}
+    timeout: ${OPENAI_API_TIMEOUT:30000}
+  model: ${OPENAI_MODEL:gpt-5-mini}
+
+# AI Detection Configuration
+ai:
+  detection:
+    confidence-threshold: ${AI_DETECTION_CONFIDENCE_THRESHOLD:0.85}
+    cache-ttl-seconds: ${AI_DETECTION_CACHE_TTL_SECONDS:3600}
+    use-enhanced-prompt: ${AI_DETECTION_USE_ENHANCED_PROMPT:true}
+
+  # OpenAI budget tracking
+  budget:
+    openai:
+      max-requests-per-hour: ${AI_BUDGET_OPENAI_MAX_REQUESTS_PER_HOUR:300}
+      max-requests-per-day: ${AI_BUDGET_OPENAI_MAX_REQUESTS_PER_DAY:3000}
+      max-cost-per-day: ${AI_BUDGET_OPENAI_MAX_COST_PER_DAY:150.0}
+      cost-per-image: ${AI_BUDGET_OPENAI_COST_PER_IMAGE:0.01}
+
+# File Upload Configuration
+file:
+  upload:
+    dir: ${FILE_UPLOAD_DIR:uploads/avatars}
+
+# Application-specific Configuration
+app:
+  # CORS Configuration
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://192.168.137.1:3000,http://192.168.31.25:3000}
+    allowed-origin-patterns: ${APP_CORS_ALLOWED_ORIGIN_PATTERNS:}
+
+  # Flyway custom configuration
+  flyway:
+    repair-on-migrate: ${APP_FLYWAY_REPAIR_ON_MIGRATE:false}
+
+# Security Configuration
+security:
+  login-attempt:
+    max-failed-attempts: ${SECURITY_LOGIN_ATTEMPT_MAX_FAILED_ATTEMPTS:5}
+    rate-limit-window-minutes: ${SECURITY_LOGIN_ATTEMPT_RATE_LIMIT_WINDOW_MINUTES:15}
+    lockout-duration-minutes: ${SECURITY_LOGIN_ATTEMPT_LOCKOUT_DURATION_MINUTES:30}
+    cleanup-days: ${SECURITY_LOGIN_ATTEMPT_CLEANUP_DAYS:30}
+    cleanup-cron: ${SECURITY_LOGIN_ATTEMPT_CLEANUP_CRON:0 0 2 * * ?}
+
+  otp:
+    code-length: ${SECURITY_OTP_CODE_LENGTH:6}
+    expiration-minutes: ${SECURITY_OTP_EXPIRATION_MINUTES:5}
+    max-requests-per-hour: ${SECURITY_OTP_MAX_REQUESTS_PER_HOUR:3}
+
+  session-cleanup:
+    cleanup-cron: ${SECURITY_SESSION_CLEANUP_CLEANUP_CRON:0 0 3 * * ?}
+    retention-days: ${SECURITY_SESSION_CLEANUP_RETENTION_DAYS:30}
+
+  # BCrypt Password Encoder Configuration
+  password-encoder:
+    bcrypt-strength: ${SECURITY_PASSWORD_ENCODER_BCRYPT_STRENGTH:10}
+
+# Goong Maps API Configuration (Vietnam)
+goong:
+  api:
+    key: ${GOONG_API_KEY:}
+    url:
+      place:
+        autocomplete: https://rsapi.goong.io/Place/AutoComplete
+        detail: https://rsapi.goong.io/Place/Detail
+      geocode: https://rsapi.goong.io/Geocode
+      distancematrix: https://rsapi.goong.io/DistanceMatrix
+
+# Resilience4j Retry Configuration
+resilience4j:
+  retry:
+    instances:
+      intake-ai:
+        max-attempts: 3
+        wait-duration: 2s
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
+          - java.net.SocketTimeoutException
+        # Don't retry on 400 (Client Error) - except maybe 429 if we want to map it
+
+# Payment Configuration
+payment:
+  bank:
+    bank: ${PAYMENT_BANK_NAME:MBBank}
+    account-number: ${PAYMENT_BANK_ACCOUNT_NUMBER:7969679999}
+    account-name: ${PAYMENT_BANK_ACCOUNT_NAME:CONG TY TNHH HOME EXPRESS}
+    branch: ${PAYMENT_BANK_BRANCH:Chi nhánh Hà Nội}
+  deposit-percentage: ${PAYMENT_DEPOSIT_PERCENTAGE:0.3}
+
+# HTTP Client Configuration
+http:
+  client:
+    # OpenAI API client timeouts
+    openai:
+      connect-timeout-ms: ${HTTP_CLIENT_OPENAI_CONNECT_TIMEOUT_MS:10000}
+      read-timeout-ms: ${HTTP_CLIENT_OPENAI_READ_TIMEOUT_MS:30000}
+    # Intake AI parsing client timeouts
+    intake-ai:
+      connect-timeout-ms: ${HTTP_CLIENT_INTAKE_AI_CONNECT_TIMEOUT_MS:5000}
+      read-timeout-ms: ${HTTP_CLIENT_INTAKE_AI_READ_TIMEOUT_MS:20000}
+    # Goong Maps API client timeouts
+    goong:
+      connect-timeout-ms: ${HTTP_CLIENT_GOONG_CONNECT_TIMEOUT_MS:5000}
+      read-timeout-ms: ${HTTP_CLIENT_GOONG_READ_TIMEOUT_MS:10000}
+
+# CORS Configuration (detailed)
+cors:
+  allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,OPTIONS,PATCH}
+  allowed-headers: ${CORS_ALLOWED_HEADERS:Authorization,Content-Type,X-Requested-With,Accept,Origin,Access-Control-Request-Method,Access-Control-Request-Headers}
+  exposed-headers: ${CORS_EXPOSED_HEADERS:Access-Control-Allow-Origin,Access-Control-Allow-Credentials,Authorization}
+  allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
+  max-age-seconds: ${CORS_MAX_AGE_SECONDS:3600}

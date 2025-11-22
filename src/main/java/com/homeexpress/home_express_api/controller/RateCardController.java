@@ -14,7 +14,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/transport/pricing/rate-cards")
-@CrossOrigin(origins = "*")
 public class RateCardController {
 
     private final RateCardService rateCardService;

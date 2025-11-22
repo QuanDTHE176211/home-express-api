@@ -11,7 +11,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/locations")
-@CrossOrigin(origins = "*")
 public class LocationController {
 
     private final VnLocationService vnLocationService;

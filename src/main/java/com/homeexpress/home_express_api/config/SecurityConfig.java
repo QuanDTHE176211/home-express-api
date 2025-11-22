@@ -1,7 +1,5 @@
 package com.homeexpress.home_express_api.config;
 
-import java.util.Arrays;
-
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -27,6 +25,24 @@ public class SecurityConfig {
     @Value("${app.cors.allowed-origins}")
     private List<String> allowedOrigins;
 
+    @Value("${cors.allowed-methods}")
+    private List<String> allowedMethods;
+
+    @Value("${cors.allowed-headers}")
+    private List<String> allowedHeaders;
+
+    @Value("${cors.exposed-headers}")
+    private List<String> exposedHeaders;
+
+    @Value("${cors.allow-credentials}")
+    private Boolean allowCredentials;
+
+    @Value("${cors.max-age-seconds}")
+    private Long maxAgeSeconds;
+
+    @Value("${security.password-encoder.bcrypt-strength}")
+    private Integer bcryptStrength;
+
     @Autowired
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
@@ -39,6 +55,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // Cho phep tat ca OPTIONS requests (CORS preflight)
                 .requestMatchers("/api/v1/auth/**").permitAll() // Cho phep truy cap cac endpoint auth khong can login
                 .requestMatchers("/api/v1/map/**").permitAll() // Cho phep truy cap map api (autocomplete)
+                .requestMatchers("/swagger-ui/**").permitAll()
+                .requestMatchers("/v3/api-docs/**").permitAll()
+                .requestMatchers("/v3/api-docs/swagger-config").permitAll()
                 .anyRequest().authenticated() // Cac endpoint khac can phai login
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class) // Them filter JWT truoc user/pass filter
@@ -50,18 +69,18 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder(); // Su dung BCrypt de hash password
+        return new BCryptPasswordEncoder(bcryptStrength); // Su dung BCrypt de hash password
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(allowedOrigins); // Load tu application.properties
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"));
-        configuration.setExposedHeaders(Arrays.asList("Access-Control-Allow-Origin", "Access-Control-Allow-Credentials", "Authorization"));
-        configuration.setAllowCredentials(true); // Bat buoc phai true khi frontend gui cookie/auth header
-        configuration.setMaxAge(3600L);
+        configuration.setAllowedOrigins(allowedOrigins); // Load tu application.yml
+        configuration.setAllowedMethods(allowedMethods);
+        configuration.setAllowedHeaders(allowedHeaders);
+        configuration.setExposedHeaders(exposedHeaders);
+        configuration.setAllowCredentials(allowCredentials);
+        configuration.setMaxAge(maxAgeSeconds);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

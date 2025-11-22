@@ -5,16 +5,14 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.homeexpress.home_express_api.dto.intake.IntakeParseTextResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import io.github.resilience4j.retry.annotation.Retry;
-
-import java.time.Duration;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -42,9 +40,8 @@ public class IntakeAIParsingService {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public IntakeAIParsingService() {
-        // Cài đặt timeout để tránh việc chờ đợi quá lâu nếu API bên kia gặp sự cố
-        this.restTemplate = buildRestTemplate();
+    public IntakeAIParsingService(@Qualifier("intakeAiRestTemplate") RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
     }
 
     /**
@@ -784,13 +781,6 @@ public class IntakeAIParsingService {
             }
         }
         return t.trim();
-    }
-
-    private static RestTemplate buildRestTemplate() {
-        SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
-        f.setConnectTimeout((int) Duration.ofSeconds(5).toMillis());
-        f.setReadTimeout((int) Duration.ofSeconds(20).toMillis());
-        return new RestTemplate(f);
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

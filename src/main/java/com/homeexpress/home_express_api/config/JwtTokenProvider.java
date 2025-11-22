@@ -12,7 +12,7 @@ import java.util.Date;
 public class JwtTokenProvider {
 
     // Secret key de ky JWT (nen luu trong environment variable)
-    private final SecretKey secretKey = Keys.secretKeyFor(SignatureAlgorithm.HS512);
+    private final SecretKey secretKey = Jwts.SIG.HS512.key().build();
 
     // Thoi gian het han token: 24 gio
     private final long jwtExpirationMs = 86400000L; // 24 hours
@@ -24,12 +24,12 @@ public class JwtTokenProvider {
         Date expiryDate = new Date(now.getTime() + jwtExpirationMs);
 
         return Jwts.builder()
-                .setSubject(userId.toString()) // User ID
+                .subject(userId.toString()) // User ID
                 .claim("email", email)
                 .claim("role", role)
-                .setIssuedAt(now)
-                .setExpiration(expiryDate)
-                .signWith(secretKey, SignatureAlgorithm.HS512)
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .signWith(secretKey, Jwts.SIG.HS512)
                 .compact();
     }
 
@@ -68,10 +68,10 @@ public class JwtTokenProvider {
         Date expiryDate = new Date(now.getTime() + refreshTokenExpirationMs);
 
         return Jwts.builder()
-                .setSubject(userId.toString())
-                .setIssuedAt(now)
-                .setExpiration(expiryDate)
-                .signWith(secretKey, SignatureAlgorithm.HS512)
+                .subject(userId.toString())
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .signWith(secretKey, Jwts.SIG.HS512)
                 .compact();
     }
 

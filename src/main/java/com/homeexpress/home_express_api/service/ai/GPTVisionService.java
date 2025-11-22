@@ -7,8 +7,8 @@ import com.homeexpress.home_express_api.dto.ai.DetectedItem;
 import com.homeexpress.home_express_api.dto.ai.DetectionResult;
 import com.homeexpress.home_express_api.dto.ai.EnhancedDetectedItem;
 import com.homeexpress.home_express_api.exception.AIServiceException;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -31,7 +31,6 @@ import java.util.Map;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class GPTVisionService {
 
     @Value("${openai.api.key:#{null}}")
@@ -50,18 +49,11 @@ public class GPTVisionService {
     private Boolean useEnhancedPrompt;
 
     private final ObjectMapper objectMapper;
+    private final RestTemplate restTemplate;
 
-    private RestTemplate restTemplate;
-
-    // Khởi tạo RestTemplate với timeout để tránh treo server nếu OpenAI phản hồi chậm
-    private RestTemplate getRestTemplate() {
-        if (restTemplate == null) {
-            SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-            factory.setConnectTimeout((int) Duration.ofSeconds(10).toMillis());
-            factory.setReadTimeout(apiTimeout != null ? apiTimeout : 30000);
-            restTemplate = new RestTemplate(factory);
-        }
-        return restTemplate;
+    public GPTVisionService(ObjectMapper objectMapper, @Qualifier("openaiRestTemplate") RestTemplate restTemplate) {
+        this.objectMapper = objectMapper;
+        this.restTemplate = restTemplate;
     }
 
     /**
@@ -121,7 +113,6 @@ public class GPTVisionService {
     // Phân tích một bức ảnh cụ thể
     private List<EnhancedDetectedItem> analyzeImage(String imageUrl, int imageIndex) {
         try {
-            RestTemplate restTemplate = getRestTemplate();
 
             String prompt = useEnhancedPrompt
                     ? AIPrompts.ENHANCED_DETECTION_PROMPT
@@ -489,7 +480,6 @@ public class GPTVisionService {
     // Tải ảnh từ URL và chuyển sang Base64
     private String fetchImageAsBase64(String imageUrl) {
         try {
-            RestTemplate restTemplate = getRestTemplate();
             byte[] imageBytes = restTemplate.getForObject(imageUrl, byte[].class);
             if (imageBytes == null) {
                 throw new RuntimeException("Không tải được ảnh: " + imageUrl);

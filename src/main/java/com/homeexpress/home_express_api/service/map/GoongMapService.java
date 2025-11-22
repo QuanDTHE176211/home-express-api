@@ -6,8 +6,8 @@ import com.homeexpress.home_express_api.dto.location.MapPlaceDTO;
 import com.homeexpress.home_express_api.repository.VnDistrictRepository;
 import com.homeexpress.home_express_api.repository.VnProvinceRepository;
 import com.homeexpress.home_express_api.repository.VnWardRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -19,14 +19,22 @@ import java.util.List;
 
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class GoongMapService implements MapService {
 
-    private final RestTemplate restTemplate = new RestTemplate();
-    
+    private final RestTemplate restTemplate;
     private final VnProvinceRepository provinceRepository;
     private final VnDistrictRepository districtRepository;
     private final VnWardRepository wardRepository;
+
+    public GoongMapService(@Qualifier("goongRestTemplate") RestTemplate restTemplate,
+                           VnProvinceRepository provinceRepository,
+                           VnDistrictRepository districtRepository,
+                           VnWardRepository wardRepository) {
+        this.restTemplate = restTemplate;
+        this.provinceRepository = provinceRepository;
+        this.districtRepository = districtRepository;
+        this.wardRepository = wardRepository;
+    }
 
     @Value("${goong.api.key}")
     private String apiKey;
@@ -46,7 +54,7 @@ public class GoongMapService implements MapService {
     @Override
     public List<MapPlaceDTO> searchPlaces(String query) {
         try {
-            String url = UriComponentsBuilder.fromHttpUrl(autocompleteUrl)
+            String url = UriComponentsBuilder.fromUriString(autocompleteUrl)
                     .queryParam("api_key", apiKey)
                     .queryParam("input", query)
                     .toUriString();
@@ -81,7 +89,7 @@ public class GoongMapService implements MapService {
     @Override
     public MapPlaceDTO getPlaceDetails(String placeId) {
         try {
-            String url = UriComponentsBuilder.fromHttpUrl(placeDetailUrl)
+            String url = UriComponentsBuilder.fromUriString(placeDetailUrl)
                     .queryParam("api_key", apiKey)
                     .queryParam("place_id", placeId)
                     .toUriString();
@@ -115,7 +123,7 @@ public class GoongMapService implements MapService {
     public MapPlaceDTO getAddressFromCoordinates(double lat, double lng) {
         try {
             String latlng = lat + "," + lng;
-            String url = UriComponentsBuilder.fromHttpUrl(geocodeUrl)
+            String url = UriComponentsBuilder.fromUriString(geocodeUrl)
                     .queryParam("api_key", apiKey)
                     .queryParam("latlng", latlng)
                     .toUriString();
@@ -151,7 +159,7 @@ public class GoongMapService implements MapService {
             String origins = originLat + "," + originLng;
             String destinations = destLat + "," + destLng;
 
-            String url = UriComponentsBuilder.fromHttpUrl(distanceMatrixUrl)
+            String url = UriComponentsBuilder.fromUriString(distanceMatrixUrl)
                     .queryParam("api_key", apiKey)
                     .queryParam("origins", origins)
                     .queryParam("destinations", destinations)

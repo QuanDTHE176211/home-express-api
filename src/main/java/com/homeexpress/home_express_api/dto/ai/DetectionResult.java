@@ -90,4 +90,24 @@ public class DetectionResult {
      * List of image URLs processed
      */
     private List<String> imageUrls;
+
+    public List<DetectedItem> getItems() {
+        return items;
+    }
+
+    public List<EnhancedDetectedItem> getEnhancedItems() {
+        return enhancedItems;
+    }
+
+    public Double getConfidence() {
+        return confidence;
+    }
+
+    public String getServiceUsed() {
+        return serviceUsed;
+    }
+
+    public Long getProcessingTimeMs() {
+        return processingTimeMs;
+    }
 }

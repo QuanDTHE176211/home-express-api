@@ -14,7 +14,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/auth")
-@CrossOrigin(origins = "*") // Cho phep tat ca domain truy cap (development)
 public class AuthController {
 
     @Autowired

@@ -1,0 +1,65 @@
+# Load environment variables from .env file
+# Copy .env.example to .env and configure before running
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: home-express-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword123}
+      MYSQL_DATABASE: ${DB_NAME:-home_express}
+      MYSQL_USER: ${DB_USER:-homeexpress}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-homeexpress123}
+      TZ: Asia/Ho_Chi_Minh
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command: >
+      --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --log-bin-trust-function-creators=1
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$${MYSQL_ROOT_PASSWORD}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - home-express-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: home-express-redis
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_data:/data
+    command: >
+      /bin/sh -c " if [ -n '$${REDIS_PASSWORD}' ]; then
+        redis-server --requirepass '$${REDIS_PASSWORD}';
+      else
+        redis-server;
+      fi"
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: |
+        if [ -n "$$REDIS_PASSWORD" ]; then
+          redis-cli -a "$$REDIS_PASSWORD" ping
+        else
+          redis-cli ping
+        fi
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - home-express-network
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  home-express-network:
+    driver: bridge

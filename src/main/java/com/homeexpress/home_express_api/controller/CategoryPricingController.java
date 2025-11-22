@@ -17,7 +17,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/transport/pricing/categories")
-@CrossOrigin(origins = "*")
 public class CategoryPricingController {
 
     @Autowired

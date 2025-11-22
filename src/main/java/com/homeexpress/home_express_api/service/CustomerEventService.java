@@ -1,5 +1,6 @@
 package com.homeexpress.home_express_api.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -154,7 +155,7 @@ public class CustomerEventService {
         // The dispute object should contain bookingId
         try {
             String disputeJson = objectMapper.writeValueAsString(dispute);
-            Map<String, Object> disputeMap = objectMapper.readValue(disputeJson, Map.class);
+            Map<String, Object> disputeMap = objectMapper.readValue(disputeJson, new TypeReference<Map<String, Object>>() {});
             Long bookingId = ((Number) disputeMap.get("bookingId")).longValue();
 
             Map<String, Object> data = Map.of(
