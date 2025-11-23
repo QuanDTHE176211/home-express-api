@@ -3,7 +3,7 @@
 -- ============================================================================
 
 -- 1. PROVINCES
-INSERT IGNORE INTO `provinces` (`code`,`name`,`name_en`,`region`) VALUES
+INSERT IGNORE INTO `vn_provinces` (`province_code`,`province_name`,`province_name_en`,`region`) VALUES
 ('10', 'Lào Cai', 'Lao Cai', 'NORTH'),
 ('11', 'Điện Biên', 'Dien Bien', 'NORTH'),
 ('12', 'Lai Châu', 'Lai Chau', 'NORTH'),
@@ -69,7 +69,7 @@ INSERT IGNORE INTO `provinces` (`code`,`name`,`name_en`,`region`) VALUES
 ('08', 'Tuyên Quang', 'Tuyen Quang', 'NORTH');
 
 -- 2. DISTRICTS
-INSERT IGNORE INTO `districts` (`code`,`name`,`province_code`) VALUES
+INSERT IGNORE INTO `vn_districts` (`district_code`,`district_name`,`province_code`) VALUES
 ('080', 'Thành phố Lào Cai', '10'),
 ('082', 'Huyện Bát Xát', '10'),
 ('083', 'Huyện Mường Khương', '10'),
@@ -777,7 +777,7 @@ INSERT IGNORE INTO `districts` (`code`,`name`,`province_code`) VALUES
 ('076', 'Huyện Sơn Dương', '08');
 
 -- 3. WARDS
-INSERT IGNORE INTO `wards` (`code`,`name`,`district_code`) VALUES
+INSERT IGNORE INTO `vn_wards` (`ward_code`,`ward_name`,`district_code`) VALUES
 ('02635', 'Phường Duyên Hải', '080'),
 ('02641', 'Phường Lào Cai', '080'),
 ('02644', 'Phường Cốc Lếu', '080'),
@@ -1779,7 +1779,7 @@ INSERT IGNORE INTO `wards` (`code`,`name`,`district_code`) VALUES
 ('05668', 'Xã Tân Long', '169'),
 ('05671', 'Xã Hòa Bình', '169');
 
-INSERT IGNORE INTO `wards` (`code`,`name`,`district_code`) VALUES
+INSERT IGNORE INTO `vn_wards` (`ward_code`,`ward_name`,`district_code`) VALUES
 ('05674', 'Xã Quang Sơn', '169'),
 ('05677', 'Xã Minh Lập', '169'),
 ('05680', 'Xã Văn Hán', '169'),
@@ -2781,7 +2781,7 @@ INSERT IGNORE INTO `wards` (`code`,`name`,`district_code`) VALUES
 ('09085', 'Xã Chấn Hưng', '252'),
 ('09088', 'Xã Nghĩa Hưng', '252');
 
-INSERT IGNORE INTO `wards` (`code`,`name`,`district_code`) VALUES
+INSERT IGNORE INTO `vn_wards` (`ward_code`,`ward_name`,`district_code`) VALUES
 ('09091', 'Xã Yên Lập', '252'),
 ('09094', 'Xã Việt Xuân', '252'),
 ('09097', 'Xã Bồ Sao', '252'),
@@ -3783,7 +3783,7 @@ INSERT IGNORE INTO `wards` (`code`,`name`,`district_code`) VALUES
 ('13156', 'Xã Vũ Công', '343'),
 ('13159', 'Xã Vũ Hòa', '343');
 
-INSERT IGNORE INTO `wards` (`code`,`name`,`district_code`) VALUES
+INSERT IGNORE INTO `vn_wards` (`ward_code`,`ward_name`,`district_code`) VALUES
 ('13162', 'Xã Quang Minh', '343'),
 ('13165', 'Xã Quang Trung', '343'),
 ('13171', 'Xã Minh Quang', '343'),
@@ -4785,7 +4785,7 @@ INSERT IGNORE INTO `wards` (`code`,`name`,`district_code`) VALUES
 ('16354', 'Xã Công Liêm', '404'),
 ('16357', 'Xã Tượng Văn', '404');
 
-INSERT IGNORE INTO `wards` (`code`,`name`,`district_code`) VALUES
+INSERT IGNORE INTO `vn_wards` (`ward_code`,`ward_name`,`district_code`) VALUES
 ('16360', 'Xã Thăng Thọ', '404'),
 ('16363', 'Xã Tượng Lĩnh', '404'),
 ('16366', 'Xã Tượng Sơn', '404'),
@@ -5787,7 +5787,7 @@ INSERT IGNORE INTO `wards` (`code`,`name`,`district_code`) VALUES
 ('19636', 'Xã Triệu Độ', '469'),
 ('19639', 'Xã Triệu Trạch', '469');
 
-INSERT IGNORE INTO `wards` (`code`,`name`,`district_code`) VALUES
+INSERT IGNORE INTO `vn_wards` (`ward_code`,`ward_name`,`district_code`) VALUES
 ('19642', 'Xã Triệu Thuận', '469'),
 ('19645', 'Xã Triệu Đại', '469'),
 ('19648', 'Xã Triệu Hòa', '469'),
@@ -6789,7 +6789,7 @@ INSERT IGNORE INTO `wards` (`code`,`name`,`district_code`) VALUES
 ('22591', 'Phường Ninh Giang', '572'),
 ('22594', 'Phường Ninh Hà', '572');
 
-INSERT IGNORE INTO `wards` (`code`,`name`,`district_code`) VALUES
+INSERT IGNORE INTO `vn_wards` (`ward_code`,`ward_name`,`district_code`) VALUES
 ('22597', 'Xã Ninh Hưng', '572'),
 ('22600', 'Xã Ninh Lộc', '572'),
 ('22603', 'Xã Ninh Ích', '572'),
@@ -7791,7 +7791,7 @@ INSERT IGNORE INTO `wards` (`code`,`name`,`district_code`) VALUES
 ('25305', 'Xã Lộc Thịnh', '692'),
 ('25306', 'Xã Lộc Khánh', '692');
 
-INSERT IGNORE INTO `wards` (`code`,`name`,`district_code`) VALUES
+INSERT IGNORE INTO `vn_wards` (`ward_code`,`ward_name`,`district_code`) VALUES
 ('25308', 'Thị trấn Thanh Bình', '693'),
 ('25309', 'Xã Hưng Phước', '693'),
 ('25310', 'Xã Phước Thiện', '693'),
@@ -8793,7 +8793,7 @@ INSERT IGNORE INTO `wards` (`code`,`name`,`district_code`) VALUES
 ('28234', 'Xã Thanh Phú Long', '808'),
 ('28237', 'Xã Dương Xuân Hội', '808');
 
-INSERT IGNORE INTO `wards` (`code`,`name`,`district_code`) VALUES
+INSERT IGNORE INTO `vn_wards` (`ward_code`,`ward_name`,`district_code`) VALUES
 ('28240', 'Xã An Lục Long', '808'),
 ('28243', 'Xã Long Trì', '808'),
 ('28246', 'Xã Thanh Vĩnh Đông', '808'),
@@ -9795,7 +9795,7 @@ INSERT IGNORE INTO `wards` (`code`,`name`,`district_code`) VALUES
 ('31150', 'Phường An Bình', '916'),
 ('31153', 'Phường Châu Văn Liêm', '917');
 
-INSERT IGNORE INTO `wards` (`code`,`name`,`district_code`) VALUES
+INSERT IGNORE INTO `vn_wards` (`ward_code`,`ward_name`,`district_code`) VALUES
 ('31154', 'Phường Thới Hòa', '917'),
 ('31156', 'Phường Thới Long', '917'),
 ('31157', 'Phường Long Hưng', '917'),
@@ -10797,7 +10797,7 @@ INSERT IGNORE INTO `wards` (`code`,`name`,`district_code`) VALUES
 ('00620', 'Phường Phúc Diễn', '021'),
 ('00688', 'Phường Quang Trung', '024');
 
-INSERT IGNORE INTO `wards` (`code`,`name`,`district_code`) VALUES
+INSERT IGNORE INTO `vn_wards` (`ward_code`,`ward_name`,`district_code`) VALUES
 ('00691', 'Phường Trần Phú', '024'),
 ('00692', 'Phường Ngọc Hà', '024'),
 ('00694', 'Phường Nguyễn Trãi', '024'),

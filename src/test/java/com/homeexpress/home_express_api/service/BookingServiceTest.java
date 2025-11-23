@@ -141,7 +141,7 @@ class BookingServiceTest {
         when(userRepository.findById(customerId)).thenReturn(Optional.of(mockUser));
 
         // When
-        BookingResponse response = bookingService.createBooking(bookingRequest, customerId);
+        BookingResponse response = bookingService.createBooking(bookingRequest, customerId, UserRole.CUSTOMER);
 
         // Then
         assertNotNull(response);
