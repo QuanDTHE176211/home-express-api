@@ -9,6 +9,7 @@ import com.homeexpress.home_express_api.entity.UserRole;
 import com.homeexpress.home_express_api.repository.UserRepository;
 import com.homeexpress.home_express_api.service.TransportFinanceService;
 import com.homeexpress.home_express_api.util.AuthenticationUtils;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -34,6 +35,10 @@ public class TransportFinanceController {
     @GetMapping("/earnings/stats")
     @PreAuthorize("hasRole('TRANSPORT')")
     public ResponseEntity<?> getEarningsStats(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authentication required"));
+        }
         User user = AuthenticationUtils.getUser(authentication, userRepository);
         if (user.getRole() != UserRole.TRANSPORT) {
             return ResponseEntity.status(403).body(ApiResponse.error("Only transport accounts can access this resource"));
@@ -46,6 +51,10 @@ public class TransportFinanceController {
     @GetMapping("/transactions")
     @PreAuthorize("hasRole('TRANSPORT')")
     public ResponseEntity<?> getTransactions(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authentication required"));
+        }
         User user = AuthenticationUtils.getUser(authentication, userRepository);
         if (user.getRole() != UserRole.TRANSPORT) {
             return ResponseEntity.status(403).body(ApiResponse.error("Only transport accounts can access this resource"));
@@ -61,6 +70,10 @@ public class TransportFinanceController {
             @RequestParam(value = "days", required = false) Integer days,
             Authentication authentication) {
 
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authentication required"));
+        }
         User user = AuthenticationUtils.getUser(authentication, userRepository);
         if (user.getRole() != UserRole.TRANSPORT) {
             return ResponseEntity.status(403).body(ApiResponse.error("Only transport accounts can access this resource"));

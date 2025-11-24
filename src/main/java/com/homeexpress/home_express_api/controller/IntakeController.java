@@ -1,22 +1,13 @@
 package com.homeexpress.home_express_api.controller;
 
-import com.homeexpress.home_express_api.dto.ai.DetectionResult;
-import com.homeexpress.home_express_api.dto.ai.DetectedItem;
-import com.homeexpress.home_express_api.dto.ai.EnhancedDetectedItem;
-import com.homeexpress.home_express_api.dto.intake.IntakeImageAnalysisResponse;
 import com.homeexpress.home_express_api.dto.intake.IntakeMergeRequest;
 import com.homeexpress.home_express_api.dto.intake.IntakeMergeResponse;
-import com.homeexpress.home_express_api.dto.intake.IntakeOcrResponse;
 import com.homeexpress.home_express_api.dto.intake.IntakeParseTextRequest;
 import com.homeexpress.home_express_api.dto.intake.IntakeParseTextResponse;
 import com.homeexpress.home_express_api.dto.intake.ItemCandidateDto;
-import com.homeexpress.home_express_api.dto.intake.ItemCandidateDto.DimensionsDto;
-import com.homeexpress.home_express_api.service.ai.AIDetectionService;
-// import com.homeexpress.home_express_api.service.intake.IntakeOcrService;
 import com.homeexpress.home_express_api.service.intake.IntakeSessionService;
 import com.homeexpress.home_express_api.service.intake.IntakeTextParsingService;
 import com.homeexpress.home_express_api.service.intake.IntakeAIParsingService;
-import com.homeexpress.home_express_api.service.intake.ItemDetectionPostProcessor;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,15 +22,12 @@ import lombok.RequiredArgsConstructor;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 /**
  * Controller for handling item intake operations
@@ -51,13 +39,11 @@ public class IntakeController {
 
     private static final Logger logger = LoggerFactory.getLogger(IntakeController.class);
 
-    private final AIDetectionService detectionOrchestrator;
-    // private final IntakeOcrService intakeOcrService;
     private final IntakeTextParsingService textParsingService;
     private final IntakeAIParsingService aiParsingService;
     private final IntakeSessionService sessionService;
-    private final ItemDetectionPostProcessor itemDetectionPostProcessor;
-    private static final List<IntakeController.DocumentItemTemplate> DOCUMENT_TEMPLATES = List.of(
+
+    private static final List<DocumentItemTemplate> DOCUMENT_TEMPLATES = List.of(
         new DocumentItemTemplate("sofa", "Sofa", "Living Room Furniture", 0.82, 1),
         new DocumentItemTemplate("bed", "Queen Bed", "Bedroom Furniture", 0.8, 1),
         new DocumentItemTemplate("table", "Dining Table", "Dining Furniture", 0.78, 1),
@@ -143,102 +129,6 @@ public class IntakeController {
                 .body(Map.of("error", "Failed to parse text: " + e.getMessage()));
         }
     }
-
-    /**
-     * Analyze uploaded images and return item candidates inferred by AI services.
-     *
-     * @param images List of uploaded image files
-     * @return AI generated intake candidates
-     */
-    @PostMapping(value = "/analyze-images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> analyzeImages(@RequestParam("images") List<MultipartFile> images) {
-        if (images == null || images.isEmpty()) {
-            return ResponseEntity.badRequest()
-                .body(Map.of(
-                    "success", false,
-                    "message", "At least one image is required"
-                ));
-        }
-
-        // Validate image count
-        if (images.size() > 10) {
-            return ResponseEntity.badRequest()
-                .body(Map.of(
-                    "success", false,
-                    "message", "Maximum 10 images allowed per request"
-                ));
-        }
-
-        // Validate each image
-        for (int i = 0; i < images.size(); i++) {
-            MultipartFile image = images.get(i);
-            if (image == null || image.isEmpty()) {
-                return ResponseEntity.badRequest()
-                    .body(Map.of(
-                        "success", false,
-                        "message", String.format("Image %d is empty or invalid", i + 1)
-                    ));
-            }
-
-            // Validate file size (max 10MB)
-            long maxSize = 10 * 1024 * 1024; // 10MB
-            if (image.getSize() > maxSize) {
-                return ResponseEntity.badRequest()
-                    .body(Map.of(
-                        "success", false,
-                        "message", String.format("Image %s exceeds maximum size of 10MB (current: %.2fMB)", 
-                            image.getOriginalFilename(), image.getSize() / (1024.0 * 1024.0))
-                    ));
-            }
-
-            // Validate content type
-            String contentType = image.getContentType();
-            if (contentType == null || 
-                (!contentType.startsWith("image/jpeg") && 
-                 !contentType.startsWith("image/png") && 
-                 !contentType.startsWith("image/webp"))) {
-                return ResponseEntity.badRequest()
-                    .body(Map.of(
-                        "success", false,
-                        "message", String.format("Image %s has invalid format. Only JPG, PNG, and WebP are allowed.", 
-                            image.getOriginalFilename())
-                    ));
-            }
-        }
-
-        try {
-            logger.info("Analyzing {} intake images", images.size());
-
-            // Convert MultipartFile images to base64 data URIs for AI analysis
-            List<String> imageDataUris = IntStream.range(0, images.size())
-                .mapToObj(index -> convertToDataUri(images.get(index)))
-                .collect(Collectors.toList());
-
-            DetectionResult detectionResult = detectionOrchestrator.detectItems(imageDataUris);
-            List<ItemCandidateDto> candidates = mapDetectionResult(detectionResult);
-            
-            // Post-process: aggregate similar items and normalize names
-            candidates = itemDetectionPostProcessor.processAndAggregate(candidates);
-
-            IntakeImageAnalysisResponse response = IntakeImageAnalysisResponse.builder()
-                .success(true)
-                .data(IntakeImageAnalysisResponse.AnalysisData.builder()
-                    .candidates(candidates)
-                    .metadata(buildMetadata(detectionResult))
-                    .build())
-                .build();
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            logger.error("Failed to analyze intake images: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of(
-                    "success", false,
-                    "message", "Failed to analyze images: " + e.getMessage()
-                ));
-        }
-    }
     
     /**
      * Parse structured documents (PDF, DOCX, XLSX) and return inferred item candidates.
@@ -269,24 +159,32 @@ public class IntakeController {
                 .filter(Objects::nonNull)
                 .mapToDouble(Double::doubleValue)
                 .average()
-                .orElse(Double.NaN);
+                .orElse(0.0);
 
-            IntakeImageAnalysisResponse response = IntakeImageAnalysisResponse.builder()
+            // Convert ItemCandidateDto to ParsedItem for response compatibility
+            List<IntakeParseTextResponse.ParsedItem> responseCandidates = candidates.stream()
+                .map(c -> IntakeParseTextResponse.ParsedItem.builder()
+                    .name(c.getName())
+                    .quantity(c.getQuantity())
+                    .categoryName(c.getCategoryName())
+                    .confidence(c.getConfidence())
+                    .reasoning(c.getNotes())
+                    .isFragile(c.getIsFragile())
+                    .requiresDisassembly(c.getRequiresDisassembly())
+                    .build())
+                .toList();
+
+            IntakeParseTextResponse response = IntakeParseTextResponse.builder()
                 .success(true)
-                .data(IntakeImageAnalysisResponse.AnalysisData.builder()
-                    .candidates(candidates)
-                    .metadata(IntakeImageAnalysisResponse.AnalysisMetadata.builder()
-                        .serviceUsed("DOCUMENT_KEYWORD_STUB")
-                        .confidence(Double.isNaN(averageConfidence) ? null : averageConfidence)
-                        .fallbackUsed(fallbackUsed)
-                        .manualReviewRequired(fallbackUsed)
-                        .manualInputRequired(fallbackUsed)
-                        .imageCount(0)
-                        .processingTimeMs(System.currentTimeMillis() - startTime)
-                        .fromCache(false)
-                        .detectedItemCount(candidates.size())
-                        .enhancedItemCount(candidates.size())
-                        .build())
+                .data(IntakeParseTextResponse.ParseTextData.builder()
+                    .candidates(responseCandidates)
+                    .warnings(fallbackUsed ? List.of("Low confidence parsing") : List.of())
+                    .metadata(Map.of(
+                        "serviceUsed", "DOCUMENT_KEYWORD_STUB",
+                        "confidence", averageConfidence,
+                        "processingTimeMs", System.currentTimeMillis() - startTime,
+                        "detectedItemCount", candidates.size()
+                    ))
                     .build())
                 .build();
 
@@ -299,21 +197,6 @@ public class IntakeController {
                     "message", "Failed to parse document: " + ex.getMessage()
                 ));
         }
-    }
-    
-    /**
-     * Perform OCR on uploaded images and generate item candidates.
-     *
-     * @param images Array of uploaded image files bound to the "images" part
-     * @return OCR extraction result with synthesized candidates
-     */
-    @PostMapping(value = "/ocr", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> processOcr(@RequestParam("images") MultipartFile[] images) {
-        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED)
-            .body(Map.of(
-                "success", false,
-                "error", "OCR service is currently disabled"
-            ));
     }
     
     private DocumentParseResult parseDocumentCandidates(MultipartFile document) {
@@ -416,153 +299,6 @@ public class IntakeController {
             "items", items,
             "count", items.size()
         ));
-    }
-
-    /**
-     * Convert MultipartFile to base64 data URI for AI analysis
-     * Format: data:image/jpeg;base64,<base64-encoded-data>
-     */
-    private String convertToDataUri(MultipartFile file) {
-        try {
-            String contentType = file.getContentType();
-            if (contentType == null || !contentType.startsWith("image/")) {
-                contentType = "image/jpeg"; // Default fallback
-            }
-            
-            byte[] imageBytes = file.getBytes();
-            String base64Image = java.util.Base64.getEncoder().encodeToString(imageBytes);
-            
-            return "data:" + contentType + ";base64," + base64Image;
-        } catch (IOException e) {
-            logger.error("Failed to convert image to data URI: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to process image: " + e.getMessage(), e);
-        }
-    }
-
-    private List<ItemCandidateDto> mapDetectionResult(DetectionResult detectionResult) {
-        if (detectionResult == null) {
-            return List.of();
-        }
-
-        List<EnhancedDetectedItem> enhancedItems = detectionResult.getEnhancedItems();
-        if (enhancedItems != null && !enhancedItems.isEmpty()) {
-            return enhancedItems.stream()
-                .map(item -> fromEnhancedItem(item, detectionResult))
-                .collect(Collectors.toCollection(ArrayList::new));
-        }
-
-        List<DetectedItem> basicItems = detectionResult.getItems();
-        if (basicItems != null && !basicItems.isEmpty()) {
-            return basicItems.stream()
-                .map(item -> fromDetectedItem(item, detectionResult))
-                .collect(Collectors.toCollection(ArrayList::new));
-        }
-
-        return List.of();
-    }
-
-    private ItemCandidateDto fromEnhancedItem(EnhancedDetectedItem item, DetectionResult detectionResult) {
-        if (item == null) {
-            return ItemCandidateDto.builder().build();
-        }
-
-        DimensionsDto dimensions = null;
-        if (item.getDimsCm() != null) {
-            dimensions = DimensionsDto.builder()
-                .widthCm(toDouble(item.getDimsCm().getWidth()))
-                .heightCm(toDouble(item.getDimsCm().getHeight()))
-                .depthCm(toDouble(item.getDimsCm().getLength()))
-                .build();
-        }
-
-        Map<String, Object> metadata = new HashMap<>();
-        putIfNotNull(metadata, "subcategory", item.getSubcategory());
-        putIfNotNull(metadata, "roomHint", item.getRoomHint());
-        putIfNotNull(metadata, "materials", item.getMaterial());
-        putIfNotNull(metadata, "bbox", item.getBboxNorm());
-        putIfNotNull(metadata, "weightBasis", item.getWeightBasis());
-        putIfNotNull(metadata, "dimensionsBasis", item.getDimensionsBasis());
-        putIfNotNull(metadata, "imageIndex", item.getImageIndex());
-        putIfNotNull(metadata, "sourceService", detectionResult.getServiceUsed());
-
-        return ItemCandidateDto.builder()
-            .id(item.getId() != null ? item.getId() : UUID.randomUUID().toString())
-            .name(item.getName())
-            .categoryName(item.getCategory())
-            .quantity(item.getQuantity() != null && item.getQuantity() > 0 ? item.getQuantity() : 1)
-            .isFragile(item.getFragile())
-            .requiresDisassembly(item.getDisassemblyRequired())
-            .requiresPackaging(Boolean.TRUE.equals(item.getFragile()))
-            .source("image")
-            .confidence(item.getConfidence())
-            .weightKg(item.getWeightKg())
-            .dimensions(dimensions)
-            .notes(item.getNotes())
-            .metadata(metadata)
-            .build();
-    }
-
-    private ItemCandidateDto fromDetectedItem(DetectedItem item, DetectionResult detectionResult) {
-        if (item == null) {
-            return ItemCandidateDto.builder().build();
-        }
-
-        DimensionsDto dimensions = null;
-        if (item.getDimensions() != null) {
-            dimensions = DimensionsDto.builder()
-                .widthCm(toDouble(item.getDimensions().getWidth()))
-                .heightCm(toDouble(item.getDimensions().getHeight()))
-                .depthCm(toDouble(item.getDimensions().getDepth()))
-                .build();
-        }
-
-        Map<String, Object> metadata = new HashMap<>();
-        putIfNotNull(metadata, "rawLabel", item.getRawLabel());
-        putIfNotNull(metadata, "imageIndex", item.getImageIndex());
-        putIfNotNull(metadata, "sourceService", detectionResult.getServiceUsed());
-
-        return ItemCandidateDto.builder()
-            .id(UUID.randomUUID().toString())
-            .name(item.getName())
-            .categoryName(item.getCategory())
-            .quantity(1)
-            .source("image")
-            .confidence(item.getConfidence())
-            .dimensions(dimensions)
-            .metadata(metadata)
-            .build();
-    }
-
-    private IntakeImageAnalysisResponse.AnalysisMetadata buildMetadata(DetectionResult detectionResult) {
-        if (detectionResult == null) {
-            return IntakeImageAnalysisResponse.AnalysisMetadata.builder()
-                .detectedItemCount(0)
-                .enhancedItemCount(0)
-                .build();
-        }
-
-        return IntakeImageAnalysisResponse.AnalysisMetadata.builder()
-            .serviceUsed(detectionResult.getServiceUsed())
-            .confidence(detectionResult.getConfidence())
-            .fallbackUsed(detectionResult.getFallbackUsed())
-            .manualReviewRequired(detectionResult.getManualReviewRequired())
-            .manualInputRequired(detectionResult.getManualInputRequired())
-            .imageCount(detectionResult.getImageCount())
-            .processingTimeMs(detectionResult.getProcessingTimeMs())
-            .fromCache(detectionResult.getFromCache())
-            .detectedItemCount(detectionResult.getItems() != null ? detectionResult.getItems().size() : 0)
-            .enhancedItemCount(detectionResult.getEnhancedItems() != null ? detectionResult.getEnhancedItems().size() : 0)
-            .build();
-    }
-
-    private void putIfNotNull(Map<String, Object> metadata, String key, Object value) {
-        if (value != null) {
-            metadata.put(key, value);
-        }
-    }
-
-    private Double toDouble(Number value) {
-        return value != null ? value.doubleValue() : null;
     }
 
     private static class DocumentParseResult {

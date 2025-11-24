@@ -26,7 +26,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +38,11 @@ import lombok.RequiredArgsConstructor;
 public class BookingService {
 
     private static final Logger log = LoggerFactory.getLogger(BookingService.class);
+    private static final Map<BookingStatus, EnumSet<BookingStatus>> ALLOWED_STATUS_TRANSITIONS =
+            Map.of(
+                    BookingStatus.PENDING, EnumSet.of(BookingStatus.QUOTED, BookingStatus.CANCELLED),
+                    BookingStatus.QUOTED, EnumSet.of(BookingStatus.CONFIRMED, BookingStatus.CANCELLED)
+            );
 
     private final BookingRepository bookingRepository;
 
@@ -62,6 +69,8 @@ public class BookingService {
     private final PaymentRepository paymentRepository;
 
     private final BookingSettlementRepository settlementRepository;
+
+    private final SettlementService settlementService;
 
     private final CustomerEventService customerEventService;
 
@@ -474,13 +483,18 @@ public class BookingService {
         return EARTH_RADIUS_KM * c;
     }
 
-    private void validateStatusTransition(BookingStatus oldStatus, BookingStatus newStatus) {
+    public void validateStatusTransition(BookingStatus oldStatus, BookingStatus newStatus) {
         if (oldStatus == BookingStatus.COMPLETED) {
             throw new IllegalStateException("Cannot change status of a completed booking");
         }
         
         if (oldStatus == BookingStatus.CANCELLED && newStatus != BookingStatus.CANCELLED) {
             throw new IllegalStateException("Cannot reopen a cancelled booking");
+        }
+
+        EnumSet<BookingStatus> allowedNext = ALLOWED_STATUS_TRANSITIONS.get(oldStatus);
+        if (allowedNext != null && !allowedNext.contains(newStatus)) {
+            throw new IllegalStateException(String.format("Invalid status transition: %s -> %s", oldStatus, newStatus));
         }
     }
 
@@ -800,10 +814,12 @@ public class BookingService {
             throw new UnauthorizedException("You can only confirm completion for your own bookings");
         }
 
-        // 2. Validate booking status is COMPLETED
-        if (booking.getStatus() != BookingStatus.COMPLETED) {
+        // 2. Validate booking status is COMPLETED (allow idempotent confirm)
+        if (booking.getStatus() != BookingStatus.COMPLETED
+                && booking.getStatus() != BookingStatus.CONFIRMED_BY_CUSTOMER) {
             throw new IllegalStateException("Booking must be in COMPLETED status to confirm completion. Current status: " + booking.getStatus());
         }
+        boolean alreadyConfirmed = booking.getStatus() == BookingStatus.CONFIRMED_BY_CUSTOMER;
 
         // 3. Verify remaining payment has been made
         List<Payment> payments = paymentRepository.findByBookingId(bookingId);
@@ -815,27 +831,27 @@ public class BookingService {
             throw new IllegalStateException("Remaining payment must be completed before confirming booking completion");
         }
 
-        // 4. Update booking status
-        BookingStatus oldStatus = booking.getStatus();
-        booking.setStatus(BookingStatus.CONFIRMED_BY_CUSTOMER);
-        Booking updatedBooking = bookingRepository.save(booking);
+        // 4. Update booking status (idempotent if already confirmed)
+        Booking updatedBooking = booking;
+        if (!alreadyConfirmed) {
+            BookingStatus oldStatus = booking.getStatus();
+            booking.setStatus(BookingStatus.CONFIRMED_BY_CUSTOMER);
+            updatedBooking = bookingRepository.save(booking);
 
-        // 5. Create status history
-        createStatusHistory(bookingId, oldStatus, BookingStatus.CONFIRMED_BY_CUSTOMER,
-                customerId, ActorRole.CUSTOMER, request != null ? request.getFeedback() : null);
+            // 5. Create status history
+            createStatusHistory(bookingId, oldStatus, BookingStatus.CONFIRMED_BY_CUSTOMER,
+                    customerId, ActorRole.CUSTOMER, request != null ? request.getFeedback() : null);
+        }
 
         // 6. Update settlement status to READY
-        Optional<BookingSettlement> settlementOpt = settlementRepository.findByBookingId(bookingId);
-        if (settlementOpt.isPresent()) {
-            BookingSettlement settlement = settlementOpt.get();
-            settlement.setStatus(SettlementStatus.READY);
-            settlement.setReadyAt(java.time.LocalDateTime.now());
-            settlementRepository.save(settlement);
-
-            log.info("Settlement {} for booking {} is now READY for payout",
-                    settlement.getSettlementId(), bookingId);
-        } else {
-            log.warn("No settlement found for booking {} when confirming completion", bookingId);
+        // In the new flow (Escrow), we trigger settlement processing here
+        // instead of just setting status to READY.
+        try {
+             settlementService.processSettlement(bookingId);
+             log.info("Settlement processed successfully for booking {}", bookingId);
+        } catch (Exception e) {
+             log.error("Failed to process settlement for booking {}: {}", bookingId, e.getMessage());
+             // Don't fail the confirmation if settlement fails, but log it
         }
 
         // 7. Send notifications
@@ -887,4 +903,3 @@ public class BookingService {
         }
     }
 }
-

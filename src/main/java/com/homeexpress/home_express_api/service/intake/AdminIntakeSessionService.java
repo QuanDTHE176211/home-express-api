@@ -8,6 +8,7 @@ import com.homeexpress.home_express_api.dto.booking.BookingRequest;
 import com.homeexpress.home_express_api.dto.intake.PublishSessionRequest;
 import com.homeexpress.home_express_api.dto.response.AdminIntakeSessionDetailResponse;
 import com.homeexpress.home_express_api.dto.response.AdminIntakeSessionListResponse;
+import com.homeexpress.home_express_api.dto.response.AdminIntakeSessionStatsResponse;
 import com.homeexpress.home_express_api.dto.booking.BookingResponse;
 import com.homeexpress.home_express_api.entity.IntakeSession;
 import com.homeexpress.home_express_api.entity.IntakeSessionItem;
@@ -29,7 +30,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -100,6 +100,27 @@ public class AdminIntakeSessionService {
                 .total((int) sessions.getTotalElements())
                 .page(page)
                 .size(size)
+                .build();
+    }
+
+    /**
+     * Get session statistics by status
+     */
+    @Transactional(readOnly = true)
+    public AdminIntakeSessionStatsResponse getSessionStats(String status) {
+        long total = sessionRepository.countByStatus(status);
+        Double avgConfidence = sessionRepository.getAverageConfidenceByStatus(status);
+        LocalDateTime oldestCreatedAt = sessionRepository.getOldestCreatedAtByStatus(status);
+        
+        long oldestWaitTime = 0;
+        if (oldestCreatedAt != null) {
+            oldestWaitTime = java.time.Duration.between(oldestCreatedAt, LocalDateTime.now()).getSeconds();
+        }
+        
+        return AdminIntakeSessionStatsResponse.builder()
+                .total(total)
+                .avgConfidence(avgConfidence != null ? avgConfidence : 0.0)
+                .oldestWaitTimeSeconds(oldestWaitTime)
                 .build();
     }
 
@@ -404,12 +425,18 @@ public class AdminIntakeSessionService {
             }
         }
 
+        List<String> imageUrls = session.getItems().stream()
+                .map(IntakeSessionItem::getImageUrl)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .collect(Collectors.toList());
+
         return AdminIntakeSessionDetailResponse.builder()
                 .sessionId(session.getSessionId())
                 .customerId(user != null ? user.getUserId() : null)
                 .status(session.getStatus())
-                .imageUrls(new ArrayList<>()) // TODO: Extract from metadata
-                .imageCount(0) // TODO: Extract from metadata
+                .imageUrls(imageUrls)
+                .imageCount(imageUrls.size())
                 .detectionResults(session.getMetadata())
                 .averageConfidence(session.getAverageConfidence() != null 
                         ? session.getAverageConfidence().doubleValue() : null)

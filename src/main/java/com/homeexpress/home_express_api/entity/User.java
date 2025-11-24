@@ -76,4 +76,13 @@ public class User {
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
+    
+    @jakarta.persistence.OneToOne(mappedBy = "user", fetch = jakarta.persistence.FetchType.LAZY)
+    private Customer customer;
+
+    @jakarta.persistence.OneToOne(mappedBy = "user", fetch = jakarta.persistence.FetchType.LAZY)
+    private Transport transport;
+
+    @jakarta.persistence.OneToOne(mappedBy = "user", fetch = jakarta.persistence.FetchType.LAZY)
+    private Manager manager;
 }

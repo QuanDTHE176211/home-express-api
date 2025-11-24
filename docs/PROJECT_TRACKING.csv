@@ -1,0 +1,63 @@
+Total Project Tracking,,,,,,,,,
+,,,,,,,,,
+#,Screen/Function,Feature,Actor,Screen/Function Description,In Charge,Status,Actual,Updated,Update Details
+1,Context Diagram,System Scope,All,Shows system boundary and external integrations (Maps, OpenAI, SMTP, PayOS).,Product,Done,iter0,iter0,Imported from design doc
+2,ERD & Schema,Data Modeling,All,Defines entities/relations for users/bookings/quotes/payments/settlements.,Backend,Done,iter0,iter0,Flyway V1 checked in
+3,API Surface,API Spec,All,Endpoint list with auth/roles and payload contracts.,Backend,Done,iter1,iter1,Controllers implemented across all modules
+4,Test Plan,Quality,All,Test layers and scenarios across auth/booking/payment/settlement.,QA,Done,iter0,iter0,See TEST_PLAN.md
+5,Environments,System Setup,All,Configure app.yml/.env, DB/Redis, SMTP, OpenAI, Goong.,DevOps,Done,iter1,iter1,Local env ready; application.yml configured
+6,Register,Authentication,Guest,Register with email/phone and issue OTP.,Backend,Done,iter1,iter1,AuthController.register() implemented
+7,Login,Authentication,Customer/Transport/Manager,Authenticate via email/password + JWT.,Backend,Done,iter1,iter1,AuthController.login() with JWT implemented
+8,OTP Request/Verify,Authentication,Guest/All,Send 6-digit OTP (5 min expiry) and verify.,Backend,Done,iter1,iter1,OtpService with rate-limit and cleanup cron
+9,Reset Password,Authentication,All,Request OTP and reset password.,Backend,Done,iter1,iter1,AuthController.forgotPassword() implemented
+10,Profile View/Update,Profile,Customer/Transport/Manager,View and edit profile (name/phone/address).,Backend,Done,iter1,iter1,UserController with file upload support
+11,Change Password,Profile,All,Change password after login.,Backend,Done,iter1,iter1,UserController.changePassword() implemented
+12,Create Booking,Booking,Customer,Create booking with addresses, floors, time slot, notes.,Backend,Done,iter1,iter1,BookingController.createBooking() implemented
+13,AI Intake Session,Intake,Customer,Upload images and parse items via OpenAI with fallback.,Backend,Done,iter2,iter2,IntakeController with AI/heuristic fallback + admin review queue
+14,Booking List/Detail,Booking,Customer,View bookings and details.,Backend,Done,iter1,iter1,BookingController.getBookings() with pagination
+15,Cancel Booking,Booking,Customer,Cancel with reason before execution.,Backend,Done,iter2,iter2,BookingController.updateBooking() with status validation
+16,Distance & Pricing Estimate,Pricing,Customer,Compute distance via Goong; fallback Haversine; show estimate.,Backend,Done,iter2,iter2,EstimationController + BookingEstimateService implemented
+17,Quotation List,Quotation,Customer,View provider quotations with breakdown/validity.,Backend,Done,iter2,iter2,BookingController.getBookingQuotations() + QuotationController
+18,Accept Quotation,Quotation,Customer,Accept one quote; reject others; trigger contract.,Backend,Done,iter2,iter2,QuotationController.acceptQuotation() with stored proc
+19,Counter-Offer,Negotiation,Customer/Transport,Send/respond counter offers before acceptance.,Backend,Done,iter2,iter2,CounterOfferService + CustomerQuotationController with SSE events
+20,Contract Preview/Sign,Contract,Customer,Generate contract number and capture acceptance.,Backend,Done,iter2,iter2,ContractController with 30% deposit logic
+21,Deposit Payment (30%),Payment,Customer,Initiate deposit (cash/bank transfer).,Backend,Done,iter2,iter2,CustomerPaymentController.initiateDeposit() with idempotency
+22,Remaining Payment + Tip,Payment,Customer,Pay remaining 70% plus optional tip.,Backend,Done,iter2,iter2,CustomerPaymentController.initiateRemainingPayment() implemented
+23,Booking Timeline/Status,Tracking,Customer,Track job statuses (PENDING->...->COMPLETED).,Backend,Done,iter2,iter2,BookingStatusHistory + CustomerSSEController for real-time updates
+24,Upload Evidence,Files,Customer/Transport,Upload photos for items/delivery proof.,Backend,Done,iter2,iter2,BookingController.uploadBookingEvidence() with validation
+25,Notifications,Messaging,All,Send and view notifications tied to events.,Backend,Done,iter2,iter2,NotificationController + NotificationService + preference management
+26,Submit Review,Feedback,Customer,Rate transport after completion.,Frontend,Done,iter2,iter2,Frontend ReviewSubmissionDialog + API client endpoint
+27,KYC/KYB Submission,Compliance,Transport,Submit business license/ID/insurance/bank info.,Backend,Done,iter1,iter1,Transport entity with verification fields
+28,Rate Card Setup,Pricing,Transport,Configure base price, distance tiers, item surcharges.,Backend,Done,iter2,iter2,TransportRateCardController + RateCardService with snapshot
+29,Vehicle Management,Fleet,Transport,Add/edit vehicles for jobs.,Backend,Done,iter2,iter2,VehicleController with CRUD operations
+30,View Eligible Bookings,Leads,Transport,See READY_TO_QUOTE bookings.,Backend,Done,iter2,iter2,TransportJobController.getAvailableBookings() with verification guard
+31,Submit Quotation,Quotation,Transport,Create quote with breakdown and validity.,Backend,Done,iter2,iter2,TransportDashboardController.submitQuotation() with SSE notification
+32,Withdraw/Expire Quote,Quotation,Transport,System/User can withdraw or auto-expire quotes.,Backend,Done,iter2,iter2,QuotationService.expireQuotations() with cron job
+33,Accept Assigned Job,Operations,Transport,Accept job after customer acceptance.,Backend,Done,iter2,iter2,TransportJobController with job acceptance logic
+34,Update Job Status,Operations,Transport,Update statuses (driver on the way/loading/etc.).,Backend,Done,iter2,iter2,TransportJobController.startJob() + completeJob() with status history
+35,Settlement View,Finance,Transport,View settlement per booking.,Backend,Done,iter3,iter3,TransportSettlementController with pagination
+36,Wallet & Ledger,Finance,Transport,View wallet balance and transaction history.,Backend,Done,iter3,iter3,WalletService + TransportFinanceController with ledger recalculation
+37,Payout Request/Export,Finance,Transport,Request payout and download statements.,Backend,Done,iter3,iter3,TransportPayoutController + StubExternalPayoutGateway
+38,Transport Verification,Compliance,Manager,Approve/reject transports and set READY_TO_QUOTE.,Backend,Done,iter2,iter2,AdminTransportController.verifyTransport() with audit
+39,Booking Oversight,Operations,Manager,View/adjust booking timeline with audit.,Backend,Done,iter2,iter2,AdminBookingController with audit log integration
+40,Settlement Review,Finance,Manager,Review settlements and mark READY/ON_HOLD.,Backend,Done,iter3,iter3,AdminSettlementController.reviewSettlement() implemented
+41,Payout Approval,Finance,Manager,Approve payouts and handle failures.,Backend,Done,iter3,iter3,AdminPayoutController with batch operations
+42,Review Moderation,Moderation,Manager,Approve/reject customer reviews.,Frontend,Done,iter3,iter3,Frontend moderation page + API client hooks (backend stub)
+43,Dispute Management,Operations,Manager,Handle customer/transport disputes with messaging.,Backend,Done,iter2,iter2,CustomerDisputeController + DisputeService with message thread
+44,Incident Management,Operations,Manager,Track and resolve booking incidents.,Backend,Done,iter2,iter2,IncidentController with severity levels + evidence
+45,Admin Dashboard,Reporting,Manager,View system stats and KPIs.,Backend,Done,iter2,iter2,AdminDashboardController + DashboardService
+46,Intake Session Review,QA,Manager,Review and override AI-detected items.,Backend,Done,iter2,iter2,AdminIntakeSessionController with SSE logs + rerun AI
+47,Location Services,Utility,All,Province/District/Ward lookup for Vietnam.,Backend,Done,iter1,iter1,LocationController + VnLocationService
+48,Map Integration,Utility,All,Autocomplete, place details, reverse geocode via Goong.,Backend,Done,iter1,iter1,MapController + MapService
+49,Product Model Search,Utility,Customer,Search brands/models for furniture items.,Backend,Done,iter2,iter2,ProductModelController with usage tracking + cleanup cron
+50,Category Management,Admin,Manager,Manage item categories and pricing rules.,Backend,Done,iter2,iter2,CategoryManagementController + CategoryPricingController
+51,Customer Settings,Profile,Customer,Manage notification preferences and settings.,Backend,Done,iter2,iter2,CustomerSettingsController + NotificationPreferenceService
+52,Transport Settings,Profile,Transport,Configure transport-specific settings.,Backend,Done,iter2,iter2,TransportSettingsController
+53,Saved Items,Utility,Customer,Save frequently used items for quick booking.,Backend,Done,iter2,iter2,CustomerSavedItemsController
+54,Audit Logging,System,All,Track all critical actions with actor/target/details.,Backend,Done,iter2,iter2,AuditController + AuditService
+55,Platform Config,Admin,Manager,Manage platform-wide settings and commission rules.,Backend,Done,iter2,iter2,PlatformController + AdminSettingsController
+56,SSE Real-time Events,System,Customer/Transport,Real-time booking/quotation/payment updates.,Backend,Done,iter2,iter2,CustomerSSEController + CustomerEventService
+57,Payment Webhook,Integration,System,Handle PayOS webhook for payment confirmation.,Backend,Done,iter2,iter2,PaymentController.handleWebhook() with verification
+58,Booking Confirmation,Workflow,Customer,Confirm booking completion after service done.,Backend,Done,iter2,iter2,BookingController.confirmCompletion() triggers settlement
+59,Commission Calculation,Finance,System,Calculate platform commission on settlements.,Backend,Done,iter3,iter3,CommissionService with rule-based calculation
+60,Analytics/Reports,Reporting,Manager,View transport performance and revenue stats.,Backend,In Progress,iter3,iter3,TransportCategoryPerformance + earnings stats (partial)

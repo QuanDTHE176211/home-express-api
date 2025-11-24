@@ -143,7 +143,58 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
+        <!-- Testcontainers for Integration Testing -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>mysql</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- WireMock for External API Mocking -->
+        <dependency>
+            <groupId>org.wiremock</groupId>
+            <artifactId>wiremock-standalone</artifactId>
+            <version>3.3.1</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Awaitility for Async Testing (SSE) -->
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- PayOS SDK -->
+        <dependency>
+            <groupId>vn.payos</groupId>
+            <artifactId>payos-java</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+
     </dependencies>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>1.19.7</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <build>
         <plugins>
@@ -173,6 +224,30 @@
                     <argLine>-XX:+EnableDynamicAgentLoading</argLine>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.openapitools</groupId>
+                <artifactId>openapi-generator-maven-plugin</artifactId>
+                <version>7.7.0</version>
+                <executions>
+                    <execution>
+                        <id>generate-postman-collection</id>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <!-- Requires docs/openapi.yaml or openapi.json to exist -->
+                            <inputSpec>${project.basedir}/docs/openapi.yaml</inputSpec>
+                            <generatorName>postman-collection</generatorName>
+                            <output>${project.basedir}/docs/postman</output>
+                            <configOptions>
+                                <folderStrategy>Tags</folderStrategy>
+                                <includeAuthInfo>true</includeAuthInfo>
+                            </configOptions>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
         </plugins>
     </build>
 

@@ -4,6 +4,7 @@ import com.homeexpress.home_express_api.entity.Notification;
 import com.homeexpress.home_express_api.entity.Transport;
 import com.homeexpress.home_express_api.entity.User;
 import com.homeexpress.home_express_api.entity.VerificationStatus;
+import com.homeexpress.home_express_api.exception.BadRequestException;
 import com.homeexpress.home_express_api.exception.ResourceNotFoundException;
 import com.homeexpress.home_express_api.repository.TransportRepository;
 import com.homeexpress.home_express_api.repository.UserRepository;
@@ -35,6 +36,13 @@ public class TransportService {
     public Page<Transport> getTransportsByVerificationStatus(VerificationStatus status, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         return transportRepository.findByVerificationStatus(status, pageable);
+    }
+
+    public Page<Transport> searchTransports(VerificationStatus status, String search, int page, int limit) {
+        // Controller passes 1-based page, convert to 0-based
+        int pageIndex = Math.max(0, page - 1);
+        Pageable pageable = PageRequest.of(pageIndex, limit, Sort.by("createdAt").descending());
+        return transportRepository.searchTransports(status, search, pageable);
     }
 
     public List<Transport> getTransportsByStatus(VerificationStatus status) {
@@ -75,6 +83,10 @@ public class TransportService {
 
     @Transactional
     public Transport rejectTransport(Long transportId, Long rejectedByUserId, String notes) {
+        if (notes == null || notes.trim().isEmpty()) {
+            throw new BadRequestException("Rejection reason is required");
+        }
+
         Transport transport = getTransportById(transportId);
         User rejector = userRepository.findById(rejectedByUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", rejectedByUserId));

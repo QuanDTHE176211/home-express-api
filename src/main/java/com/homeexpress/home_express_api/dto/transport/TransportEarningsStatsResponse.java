@@ -10,6 +10,7 @@ import java.util.List;
 public class TransportEarningsStatsResponse {
 
     private Long totalEarnings;
+    private Long currentBalance;
     private Long thisMonthEarnings;
     private Integer thisMonthBookings;
     private Long pendingAmount;
@@ -25,6 +26,14 @@ public class TransportEarningsStatsResponse {
 
     public void setTotalEarnings(Long totalEarnings) {
         this.totalEarnings = totalEarnings;
+    }
+
+    public Long getCurrentBalance() {
+        return currentBalance;
+    }
+
+    public void setCurrentBalance(Long currentBalance) {
+        this.currentBalance = currentBalance;
     }
 
     public Long getThisMonthEarnings() {

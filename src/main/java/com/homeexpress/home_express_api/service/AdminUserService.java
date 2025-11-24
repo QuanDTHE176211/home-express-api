@@ -4,13 +4,18 @@ import com.homeexpress.home_express_api.dto.response.UserListResponse;
 import com.homeexpress.home_express_api.entity.*;
 import com.homeexpress.home_express_api.exception.ResourceNotFoundException;
 import com.homeexpress.home_express_api.repository.*;
+import com.homeexpress.home_express_api.util.AuthenticationUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -22,13 +27,11 @@ public class AdminUserService {
 
     private final UserRepository userRepository;
 
-    private final CustomerRepository customerRepository;
-
-    private final TransportRepository transportRepository;
-
-    private final ManagerRepository managerRepository;
-
     private final BookingRepository bookingRepository;
+    
+    private final UserSessionService userSessionService;
+    
+    private final JdbcTemplate jdbcTemplate;
 
     /**
      * Get all users with their profiles
@@ -56,7 +59,19 @@ public class AdminUserService {
 
             if (search != null && !search.trim().isEmpty()) {
                 String searchPattern = "%" + search.toLowerCase() + "%";
-                predicates.add(cb.like(cb.lower(root.get("email")), searchPattern));
+                
+                // Join tables (LEFT JOIN) to search in related entities
+                Join<User, Customer> customerJoin = root.join("customer", JoinType.LEFT);
+                Join<User, Transport> transportJoin = root.join("transport", JoinType.LEFT);
+                Join<User, Manager> managerJoin = root.join("manager", JoinType.LEFT);
+                
+                // Create OR condition
+                Predicate emailMatch = cb.like(cb.lower(root.get("email")), searchPattern);
+                Predicate customerNameMatch = cb.like(cb.lower(customerJoin.get("fullName")), searchPattern);
+                Predicate companyNameMatch = cb.like(cb.lower(transportJoin.get("companyName")), searchPattern);
+                Predicate managerNameMatch = cb.like(cb.lower(managerJoin.get("fullName")), searchPattern);
+                
+                predicates.add(cb.or(emailMatch, customerNameMatch, companyNameMatch, managerNameMatch));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));
@@ -121,7 +136,8 @@ public class AdminUserService {
 
         switch (user.getRole()) {
             case CUSTOMER:
-                Customer customer = customerRepository.findByUser_UserId(user.getUserId()).orElse(null);
+                // Uses JPA relationship (eagerly fetched in getAllUsersWithProfiles)
+                Customer customer = user.getCustomer();
                 if (customer != null) {
                     profileData.put("customer_id", customer.getCustomerId());
                     profileData.put("full_name", customer.getFullName());
@@ -136,7 +152,8 @@ public class AdminUserService {
                 break;
 
             case TRANSPORT:
-                Transport transport = transportRepository.findByUser_UserId(user.getUserId()).orElse(null);
+                // Uses JPA relationship (eagerly fetched in getAllUsersWithProfiles)
+                Transport transport = user.getTransport();
                 if (transport != null) {
                     profileData.put("transport_id", transport.getTransportId());
                     profileData.put("company_name", transport.getCompanyName());
@@ -159,7 +176,8 @@ public class AdminUserService {
                 break;
 
             case MANAGER:
-                Manager manager = managerRepository.findByUser_UserId(user.getUserId()).orElse(null);
+                // Uses JPA relationship (eagerly fetched in getAllUsersWithProfiles)
+                Manager manager = user.getManager();
                 if (manager != null) {
                     profileData.put("manager_id", manager.getManagerId());
                     profileData.put("full_name", manager.getFullName());
@@ -201,7 +219,23 @@ public class AdminUserService {
         user.setIsActive(false);
         userRepository.save(user);
         
-        // TODO: Log deactivation reason in audit log
+        // Revoke all active sessions
+        userSessionService.revokeAllUserSessions(userId, reason);
+
+        // Log deactivation reason in audit log
+        Long currentUserId = AuthenticationUtils.getUserId(SecurityContextHolder.getContext().getAuthentication());
+        logAuditEvent(currentUserId, "users", userId, "USER_DEACTIVATED", "Reason: " + reason);
+    }
+
+    private void logAuditEvent(Long actorId, String tableName, Long rowPk, String action, String details) {
+        if (jdbcTemplate != null) {
+            try {
+                String sql = "INSERT INTO audit_log (table_name, action, row_pk, actor_id, new_data) VALUES (?, ?, ?, ?, ?)";
+                jdbcTemplate.update(sql, tableName, action, rowPk, actorId, details);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     /**
@@ -215,7 +249,7 @@ public class AdminUserService {
 
         if (user.getRole() == UserRole.CUSTOMER) {
             // Count customer's active bookings
-            Customer customer = customerRepository.findByUser_UserId(userId).orElse(null);
+            Customer customer = user.getCustomer();
             if (customer != null) {
                 activeBookingsCount = bookingRepository.countByCustomerIdAndStatusIn(
                     customer.getCustomerId(),
@@ -229,8 +263,7 @@ public class AdminUserService {
             }
         } else if (user.getRole() == UserRole.TRANSPORT) {
             // Count transport's active bookings
-            Transport transport = transportRepository.findByUser_UserId(userId)
-                    .orElse(null);
+            Transport transport = user.getTransport();
             if (transport != null) {
                 activeBookingsCount = bookingRepository.countByTransportIdAndStatusIn(
                     transport.getTransportId(),

@@ -244,8 +244,9 @@ public class QuotationService {
             log.warn("Failed to capture rate card snapshot for quotation {}: {}", saved.getQuotationId(), e.getMessage());
         }
 
-        // TODO: Send notification to customer about new quotation
-        // Notification will be sent via NotificationService when quotation is submitted
+        // Send notification to customer about new quotation
+        bookingRepository.findById(request.getBookingId())
+            .ifPresent(booking -> sendNewQuotationNotification(saved, booking));
 
         return mapToResponse(saved);
     }
@@ -522,8 +523,8 @@ public class QuotationService {
 
         Quotation updated = quotationRepository.save(quotation);
         
-        // TODO: Send notification to transport about rejection
-        // Can be added if needed
+        // Send notification to transport about rejection
+        sendQuotationRejectedNotification(updated);
         
         return mapToResponse(updated);
     }

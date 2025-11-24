@@ -50,7 +50,7 @@ public class RateCardService {
 
     @Transactional
     public RateCardResponse createOrUpdateRateCard(Long transportId, RateCardRequest request) {
-        Transport transport = transportRepository.findById(transportId)
+        transportRepository.findById(transportId)
                 .orElseThrow(() -> new RuntimeException("Transport not found"));
 
         Category category = categoryRepository.findById(request.getCategoryId())

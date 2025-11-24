@@ -18,12 +18,12 @@ public class BookingStatusHistory {
     private Long bookingId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "old_status", length = 20)
+    @Column(name = "old_status", length = 32)
     private BookingStatus oldStatus;
 
     @NotNull
     @Enumerated(EnumType.STRING)
-    @Column(name = "new_status", nullable = false, length = 20)
+    @Column(name = "new_status", nullable = false, length = 32)
     private BookingStatus newStatus;
 
     @Column(name = "changed_by")

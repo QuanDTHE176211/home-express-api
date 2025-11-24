@@ -1,13 +1,20 @@
 package com.homeexpress.home_express_api.service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.util.StringUtils;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,25 +32,31 @@ import com.homeexpress.home_express_api.dto.request.PaymentMethodRequest;
 
 import com.homeexpress.home_express_api.dto.response.InitiateRemainingPaymentResponse;
 import com.homeexpress.home_express_api.dto.response.PaymentStatusResponse;
+import com.homeexpress.home_express_api.entity.ActorRole;
 import com.homeexpress.home_express_api.entity.Booking;
 import com.homeexpress.home_express_api.entity.BookingSettlement;
 import com.homeexpress.home_express_api.entity.BookingStatus;
+import com.homeexpress.home_express_api.entity.BookingStatusHistory;
 import com.homeexpress.home_express_api.entity.CollectionMode;
 import com.homeexpress.home_express_api.entity.Notification;
 import com.homeexpress.home_express_api.entity.Payment;
 import com.homeexpress.home_express_api.entity.PaymentMethod;
 import com.homeexpress.home_express_api.entity.PaymentStatus;
 import com.homeexpress.home_express_api.entity.PaymentType;
+import com.homeexpress.home_express_api.entity.Quotation;
+import com.homeexpress.home_express_api.entity.QuotationStatus;
 import com.homeexpress.home_express_api.entity.SettlementStatus;
 import com.homeexpress.home_express_api.entity.TransportWallet;
 import com.homeexpress.home_express_api.entity.User;
 import com.homeexpress.home_express_api.entity.UserRole;
 import com.homeexpress.home_express_api.repository.BookingRepository;
+import com.homeexpress.home_express_api.repository.BookingStatusHistoryRepository;
 import com.homeexpress.home_express_api.repository.BookingSettlementRepository;
+import com.homeexpress.home_express_api.repository.ContractRepository;
 import com.homeexpress.home_express_api.repository.PaymentRepository;
+import com.homeexpress.home_express_api.repository.QuotationRepository;
 import com.homeexpress.home_express_api.repository.TransportRepository;
 import com.homeexpress.home_express_api.repository.UserRepository;
-import com.homeexpress.home_express_api.constants.BookingConstants;
 import com.homeexpress.home_express_api.entity.WalletTransactionReferenceType;
 import com.homeexpress.home_express_api.entity.WalletTransactionType;
 import com.homeexpress.home_express_api.exception.PaymentNotFoundException;
@@ -64,6 +77,10 @@ public class PaymentService {
 
     private final BookingRepository bookingRepository;
 
+    private final QuotationRepository quotationRepository;
+
+    private final ContractRepository contractRepository;
+
     private final JdbcTemplate jdbcTemplate;
 
     private final PaymentConfig paymentConfig;
@@ -76,11 +93,17 @@ public class PaymentService {
 
     private final BookingSettlementRepository settlementRepository;
 
+    private final BookingStatusHistoryRepository statusHistoryRepository;
+
     private final CommissionService commissionService;
 
     private final CustomerEventService customerEventService;
 
     private final WalletService walletService;
+
+    private final BookingService bookingService;
+
+    private final ObjectMapper objectMapper;
 
     public PaymentSummaryDTO getPaymentSummary(Long bookingId, Long userId, UserRole userRole) {
         Booking booking = bookingRepository.findById(bookingId)
@@ -174,9 +197,66 @@ public class PaymentService {
 
         payment.setTransactionId(request.getTransactionId());
         Payment updatedPayment = markPaymentAsCompleted(payment, userId);
-        handlePostCompletionSideEffects(updatedPayment, booking);
+        handlePostCompletionSideEffects(updatedPayment, booking, userId, toActorRole(userRole));
 
         return PaymentResponseDTO.fromEntity(updatedPayment);
+    }
+
+    @Transactional
+    public Payment confirmPayOsPayment(Long orderCode, Integer paidAmount, String paymentLinkId, String reference) {
+        if (orderCode == null) {
+            throw new IllegalArgumentException("PayOS order code is required");
+        }
+
+        Optional<Payment> paymentOpt = paymentRepository.findByTransactionId(String.valueOf(orderCode));
+
+        if (paymentOpt.isEmpty() && StringUtils.hasText(reference)) {
+            paymentOpt = paymentRepository.findByTransactionId(reference);
+        }
+
+        Payment payment = paymentOpt
+                .orElseThrow(() -> new PaymentNotFoundException("Payment not found for order code " + orderCode));
+
+        Booking booking = bookingRepository.findById(payment.getBookingId())
+                .orElseThrow(() -> new ResourceNotFoundException("Booking", "id", payment.getBookingId()));
+
+        if (payment.getStatus() == PaymentStatus.COMPLETED) {
+            return payment;
+        }
+
+        if (payment.getStatus() != PaymentStatus.PENDING && payment.getStatus() != PaymentStatus.PROCESSING) {
+            throw new InvalidPaymentStatusException(payment.getStatus(), "confirm");
+        }
+
+        validatePayOsAmount(payment, paidAmount);
+
+        if (payment.getPaymentMethod() == null || PaymentMethod.BANK_TRANSFER.equals(payment.getPaymentMethod())) {
+            payment.setPaymentMethod(PaymentMethod.PAYOS);
+        }
+
+        String transactionRef = reference != null ? reference : String.valueOf(orderCode);
+
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("gateway", "PayOS");
+        metadata.put("orderCode", String.valueOf(orderCode));
+        if (paymentLinkId != null) {
+            metadata.put("paymentLinkId", paymentLinkId);
+        }
+        metadata.put("transactionId", transactionRef);
+        if (paidAmount != null) {
+            metadata.put("amount", paidAmount);
+        }
+        payment.setMetadata(mergeMetadata(payment.getMetadata(), metadata));
+
+        payment.setTransactionId(transactionRef);
+        if (!StringUtils.hasText(payment.getIdempotencyKey())) {
+            payment.setIdempotencyKey(String.valueOf(orderCode));
+        }
+
+        Payment updatedPayment = markPaymentAsCompleted(payment, null);
+        handlePostCompletionSideEffects(updatedPayment, booking, null, ActorRole.SYSTEM);
+
+        return updatedPayment;
     }
 
 
@@ -234,7 +314,7 @@ public class PaymentService {
     }
 
     private boolean isOnlinePayment(PaymentMethod method) {
-        return method == PaymentMethod.BANK_TRANSFER;
+        return method == PaymentMethod.BANK_TRANSFER || method == PaymentMethod.PAYOS;
     }
 
     /**
@@ -246,7 +326,8 @@ public class PaymentService {
         }
         
         boolean hasCash = payments.stream().anyMatch(p -> p.getPaymentMethod() == PaymentMethod.CASH);
-        boolean hasOnline = payments.stream().anyMatch(p -> p.getPaymentMethod() == PaymentMethod.BANK_TRANSFER);
+        boolean hasOnline = payments.stream().anyMatch(p -> 
+                p.getPaymentMethod() == PaymentMethod.BANK_TRANSFER || p.getPaymentMethod() == PaymentMethod.PAYOS);
         
         if (hasCash && hasOnline) {
             return CollectionMode.MIXED;
@@ -387,12 +468,13 @@ public class PaymentService {
         long platformFee = commissionService.calculatePlatformFee(finalPrice, booking.getTransportId());
         settlement.setCommissionRateBps(commissionRate);
         settlement.setPlatformFeeVnd(platformFee);
-        settlement.setStatus(SettlementStatus.READY);
-        settlement.setReadyAt(settlement.getReadyAt() == null ? LocalDateTime.now() : settlement.getReadyAt());
-        settlement.setOnHoldReason(null);
+        // settlement.setStatus(SettlementStatus.READY);
+        // settlement.setReadyAt(settlement.getReadyAt() == null ? LocalDateTime.now() : settlement.getReadyAt());
+        // settlement.setOnHoldReason(null);
         settlementRepository.save(settlement);
 
-        creditTransportWalletIfNeeded(settlement);
+        // Removed auto-credit here as requested.
+        // creditTransportWalletIfNeeded(settlement);
     }
 
     private void creditTransportWalletIfNeeded(BookingSettlement settlement) {
@@ -440,31 +522,53 @@ public class PaymentService {
         return value != null ? value : 0L;
     }
 
-    private void updateBookingStatusAfterInitiation(Booking booking, BookingStatus targetStatus) {
-        updateBookingStatusIfAdvanced(booking, targetStatus);
+    private void updateBookingStatusAfterInitiation(Booking booking, BookingStatus targetStatus,
+            Long actorId, ActorRole actorRole, String reason) {
+        advanceBookingStatusIfNeeded(booking, targetStatus, actorId, actorRole, reason);
     }
 
-    private void updateBookingStatusAfterPayment(Booking booking, PaymentType paymentType) {
+    private void updateBookingStatusAfterPayment(Booking booking, PaymentType paymentType,
+            Long actorId, ActorRole actorRole) {
         if (paymentType == PaymentType.DEPOSIT) {
-            updateBookingStatusIfAdvanced(booking, BookingStatus.CONFIRMED);
-        } else if (paymentType == PaymentType.REMAINING_PAYMENT || paymentType == PaymentType.TIP) {
-            updateBookingStatusIfAdvanced(booking, BookingStatus.CONFIRMED_BY_CUSTOMER);
+            if (booking.getStatus() == BookingStatus.CONFIRMED) {
+                return;
+            }
+            try {
+                ensureBookingReadyForConfirmation(booking);
+                advanceBookingStatusIfNeeded(booking, BookingStatus.CONFIRMED, actorId, actorRole, "Deposit completed");
+            } catch (RuntimeException e) {
+                log.warn("Skipping booking {} status update to CONFIRMED: {}", booking.getBookingId(), e.getMessage());
+            }
         }
     }
 
-    private void updateBookingStatusIfAdvanced(Booking booking, BookingStatus newStatus) {
+    private void advanceBookingStatusIfNeeded(Booking booking, BookingStatus newStatus,
+            Long actorId, ActorRole actorRole, String reason) {
         if (newStatus == null) {
             return;
         }
         BookingStatus currentStatus = booking.getStatus();
-        if (currentStatus == BookingStatus.CANCELLED) {
+        if (currentStatus == BookingStatus.CANCELLED || currentStatus.ordinal() >= newStatus.ordinal()) {
             return;
         }
-        if (currentStatus.ordinal() >= newStatus.ordinal()) {
-            return;
-        }
+
+        BookingStatus oldStatus = currentStatus;
         booking.setStatus(newStatus);
         bookingRepository.save(booking);
+
+        try {
+            BookingStatusHistory history = new BookingStatusHistory(
+                    booking.getBookingId(),
+                    oldStatus,
+                    newStatus,
+                    actorId,
+                    actorRole
+            );
+            history.setReason(reason);
+            statusHistoryRepository.save(history);
+        } catch (Exception e) {
+            log.warn("Failed to record booking status history for booking {}: {}", booking.getBookingId(), e.getMessage());
+        }
     }
 
     public List<PaymentResponseDTO> getPaymentHistory(Long bookingId, Long userId, UserRole userRole) {
@@ -495,13 +599,8 @@ public class PaymentService {
             throw new UnauthorizedException("You can only make payments for your own bookings");
         }
 
-        // 2. Check booking has final price (transport accepted)
-        if (booking.getFinalPrice() == null) {
-            throw new IllegalStateException("Booking does not have a final price yet. Please select a quotation first.");
-        }
-
-        // 3. Calculate deposit amount (30%)
-        Double depositAmount = booking.getFinalPrice().doubleValue() * paymentConfig.getDepositPercentage();
+        // 2. Calculate deposit amount based on configured percentage with fallback price resolution
+        BigDecimal depositAmount = calculateDepositAmount(booking);
 
         // 4. Check if deposit already paid
         List<Payment> existingPayments = paymentRepository.findByBookingId(request.getBookingId());
@@ -522,17 +621,17 @@ public class PaymentService {
         payment.setBookingId(request.getBookingId());
         payment.setPaymentType(PaymentType.DEPOSIT);
         payment.setPaymentMethod(mapPaymentMethod(request.getMethod()));
-        payment.setAmount(BigDecimal.valueOf(depositAmount));
+        payment.setAmount(depositAmount);
         payment.setStatus(PaymentStatus.PENDING);
         payment.setIdempotencyKey(UUID.randomUUID().toString());
 
         Payment savedPayment = paymentRepository.save(payment);
-        updateBookingStatusAfterInitiation(booking, BookingStatus.CONFIRMED);
+        updateBookingStatusAfterInitiation(booking, BookingStatus.CONFIRMED, userId, ActorRole.CUSTOMER, "Deposit initiated");
 
         // 6. Auto-complete payment if method is CASH
         if (PaymentMethod.CASH.equals(savedPayment.getPaymentMethod())) {
             Payment completedPayment = markPaymentAsCompleted(savedPayment, userId);
-            handlePostCompletionSideEffects(completedPayment, booking);
+            handlePostCompletionSideEffects(completedPayment, booking, userId, ActorRole.CUSTOMER);
             savedPayment = completedPayment;
         }
 
@@ -545,7 +644,7 @@ public class PaymentService {
                 .paymentId(savedPayment.getPaymentId().toString())
                 .paymentUrl(paymentUrl)
                 .bookingId(request.getBookingId())
-                .depositAmount(depositAmount)
+                .depositAmount(depositAmount.doubleValue())
                 .message("Payment initiated successfully")
                 .build();
     }
@@ -574,8 +673,8 @@ public class PaymentService {
             throw new IllegalStateException("Booking does not have a final price.");
         }
 
-        // 4. Calculate remaining amount (70%)
-        Double remainingPercentage = 1.0 - paymentConfig.getDepositPercentage();
+        // 4. Calculate remaining amount (100% - deposit percentage)
+        double remainingPercentage = 1.0 - getEffectiveDepositPercentage();
         Long remainingAmountVnd = Math.round(booking.getFinalPrice().doubleValue() * remainingPercentage);
         Long tipAmountVnd = request.getTipAmountVnd() != null ? request.getTipAmountVnd() : 0L;
         Long totalAmountVnd = remainingAmountVnd + tipAmountVnd;
@@ -623,13 +722,12 @@ public class PaymentService {
         if (PaymentMethod.CASH.equals(savedPayment.getPaymentMethod())) {
             // Complete remaining payment
             Payment completedPayment = markPaymentAsCompleted(savedPayment, userId);
-            handlePostCompletionSideEffects(completedPayment, booking);
+            handlePostCompletionSideEffects(completedPayment, booking, userId, ActorRole.CUSTOMER);
             savedPayment = completedPayment;
             
             // Complete tip payment if exists
             if (savedTip != null) {
-                Payment completedTip = markPaymentAsCompleted(savedTip, userId);
-                handlePostCompletionSideEffects(completedTip, booking);
+                handlePostCompletionSideEffects(markPaymentAsCompleted(savedTip, userId), booking, userId, ActorRole.CUSTOMER);
             }
         }
 
@@ -734,7 +832,106 @@ public class PaymentService {
     // ========================================================================
     // HELPER METHODS
     // ========================================================================
-    
+
+    private double getEffectiveDepositPercentage() {
+        return paymentConfig.getDepositPercentage() != null
+                ? paymentConfig.getDepositPercentage()
+                : 0.3d;
+    }
+
+    public BigDecimal calculateDepositAmount(Booking booking) {
+        if (booking == null) {
+            throw new IllegalArgumentException("Booking is required to calculate deposit");
+        }
+
+        BigDecimal basePrice = booking.getFinalPrice();
+
+        if (basePrice == null) {
+            basePrice = quotationRepository
+                    .findTopByBookingIdAndStatusOrderByAcceptedAtDesc(booking.getBookingId(), QuotationStatus.ACCEPTED)
+                    .map(Quotation::getQuotedPrice)
+                    .orElse(null);
+        }
+
+        if (basePrice == null) {
+            throw new IllegalStateException("Booking does not have a final or accepted quoted price");
+        }
+
+        BigDecimal deposit = basePrice.multiply(BigDecimal.valueOf(getEffectiveDepositPercentage()));
+
+        if (deposit.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalStateException("Deposit amount must be positive");
+        }
+
+        return deposit.setScale(0, RoundingMode.CEILING);
+    }
+
+    private void ensureBookingReadyForConfirmation(Booking booking) {
+        if (booking == null) {
+            throw new IllegalStateException("Booking not found for payment confirmation");
+        }
+
+        if (booking.getStatus() == BookingStatus.CONFIRMED) {
+            return;
+        }
+
+        bookingService.validateStatusTransition(booking.getStatus(), BookingStatus.CONFIRMED);
+
+        if (!hasAcceptedQuotation(booking.getBookingId())) {
+            throw new IllegalStateException("Booking must have an accepted quotation before confirmation");
+        }
+
+        contractRepository.findByBookingId(booking.getBookingId())
+                .orElseThrow(() -> new IllegalStateException("Contract must be created before confirming booking"));
+    }
+
+    private boolean hasAcceptedQuotation(Long bookingId) {
+        if (bookingId == null) {
+            return false;
+        }
+
+        return quotationRepository
+                .findTopByBookingIdAndStatusOrderByAcceptedAtDesc(bookingId, QuotationStatus.ACCEPTED)
+                .isPresent();
+    }
+
+    private void validatePayOsAmount(Payment payment, Integer paidAmount) {
+        if (paidAmount == null) {
+            throw new IllegalStateException("Webhook amount is missing");
+        }
+
+        BigDecimal expectedAmount = payment.getAmount() != null ? payment.getAmount() : BigDecimal.ZERO;
+        if (expectedAmount.compareTo(BigDecimal.valueOf(paidAmount)) != 0) {
+            throw new IllegalStateException(String.format("Webhook amount %d does not match expected payment amount %.0f",
+                    paidAmount, expectedAmount.doubleValue()));
+        }
+    }
+
+    private String mergeMetadata(String currentMetadata, Map<String, Object> updates) {
+        Map<String, Object> merged = new HashMap<>();
+
+        if (StringUtils.hasText(currentMetadata)) {
+            try {
+                merged.putAll(objectMapper.readValue(currentMetadata, new TypeReference<Map<String, Object>>() {}));
+            } catch (Exception e) {
+                log.warn("Failed to parse existing payment metadata: {}", e.getMessage());
+            }
+        }
+
+        if (updates != null) {
+            updates.entrySet().stream()
+                    .filter(entry -> entry.getValue() != null)
+                    .forEach(entry -> merged.put(entry.getKey(), entry.getValue()));
+        }
+
+        try {
+            return objectMapper.writeValueAsString(merged);
+        } catch (Exception e) {
+            log.warn("Failed to serialize payment metadata: {}", e.getMessage());
+            return currentMetadata;
+        }
+    }
+
     /**
      * Mark payment as completed with timestamp and confirmedBy.
      * This is an internal helper - no permission checks here.
@@ -755,23 +952,34 @@ public class PaymentService {
      * Handle all post-completion side effects: settlement, wallet credit, booking status, notifications.
      * This is an internal helper - assumes payment is already COMPLETED.
      */
-    private void handlePostCompletionSideEffects(Payment payment, Booking booking) {
+    private void handlePostCompletionSideEffects(Payment payment, Booking booking, Long actorId, ActorRole actorRole) {
         // Update settlement breakdown for customer payments
         if (PaymentType.DEPOSIT.equals(payment.getPaymentType())
                 || PaymentType.REMAINING_PAYMENT.equals(payment.getPaymentType())
                 || PaymentType.TIP.equals(payment.getPaymentType())) {
             BookingSettlement settlement = updateSettlementPaymentBreakdown(payment, booking);
             finalizeSettlementIfEligible(booking, settlement);
-            if (PaymentType.REMAINING_PAYMENT.equals(payment.getPaymentType())) {
-                creditTransportWalletIfNeeded(settlement);
-            }
-            updateBookingStatusAfterPayment(booking, payment.getPaymentType());
+            // if (PaymentType.REMAINING_PAYMENT.equals(payment.getPaymentType())) {
+            //    creditTransportWalletIfNeeded(settlement);
+            // }
+            updateBookingStatusAfterPayment(booking, payment.getPaymentType(), actorId, actorRole);
         }
 
         // Send notification about payment confirmation
         sendPaymentConfirmationNotification(payment);
     }
     
+    private ActorRole toActorRole(UserRole userRole) {
+        if (userRole == null) {
+            return ActorRole.SYSTEM;
+        }
+        return switch (userRole) {
+            case CUSTOMER -> ActorRole.CUSTOMER;
+            case TRANSPORT -> ActorRole.TRANSPORT;
+            case MANAGER -> ActorRole.MANAGER;
+        };
+    }
+
     private com.homeexpress.home_express_api.entity.PaymentMethod mapPaymentMethod(PaymentMethodRequest method) {
         if (method == null) {
             throw new IllegalArgumentException("Payment method is required");
@@ -795,4 +1003,3 @@ public class PaymentService {
     }
 
 }
-

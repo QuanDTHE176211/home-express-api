@@ -16,7 +16,9 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @Slf4j
@@ -52,42 +54,40 @@ public class GoongMapService implements MapService {
     @Value("${goong.api.url.distancematrix}")
     private String distanceMatrixUrl;
 
+    private static final CityBias HANOI = new CityBias(
+            "ha-noi",
+            List.of("ha noi", "hanoi", "tp ha noi", "thanh pho ha noi"),
+            21.027763, 105.834160, 60000);
+
+    private static final CityBias HO_CHI_MINH = new CityBias(
+            "ho-chi-minh",
+            List.of("ho chi minh", "ho chi minh city", "tp ho chi minh", "tp hcm", "hcm", "hcmc", "sai gon", "saigon"),
+            10.823099, 106.629662, 60000);
+
+    private static final List<CityBias> SUPPORTED_CITIES = List.of(HANOI, HO_CHI_MINH);
+
     @Override
     public List<MapPlaceDTO> searchPlaces(String query) {
-        try {
-            String url = UriComponentsBuilder.fromUriString(autocompleteUrl)
-                    .queryParam("api_key", apiKey)
-                    .queryParam("input", query)
-                    .toUriString();
-
-            JsonNode response = restTemplate.getForObject(url, JsonNode.class);
-            List<MapPlaceDTO> results = new ArrayList<>();
-
-            if (response != null && response.has("predictions")) {
-                for (JsonNode prediction : response.get("predictions")) {
-                    String description = prediction.path("description").asText("");
-
-                    if (!StringUtils.hasText(description)) {
-                        continue;
-                    }
-                    if (description.contains("http://") || description.contains("https://")) {
-                        continue;
-                    }
-
-                    JsonNode formatting = prediction.path("structured_formatting");
-                    results.add(MapPlaceDTO.builder()
-                            .placeId(prediction.path("place_id").asText(""))
-                            .description(description)
-                            .mainText(formatting.path("main_text").asText(""))
-                            .secondaryText(formatting.path("secondary_text").asText(""))
-                            .build());
-                }
-            }
-            return results;
-        } catch (RestClientException e) {
-            log.error("Error calling Goong Autocomplete API", e);
+        if (!StringUtils.hasText(query)) {
             return List.of();
         }
+
+        String normalizedQuery = normalizeForMatch(query);
+        List<MapPlaceDTO> filteredResults = new ArrayList<>();
+        Set<String> seenPlaceIds = new HashSet<>();
+
+        List<CityBias> prioritizedCities = prioritizeCities(normalizedQuery);
+        for (CityBias cityBias : prioritizedCities) {
+            List<MapPlaceDTO> cityResults = fetchAutocompleteResults(query, cityBias);
+            appendResultsForCity(filteredResults, seenPlaceIds, cityResults, cityBias);
+        }
+
+        if (filteredResults.size() < 6) {
+            List<MapPlaceDTO> fallbackResults = fetchAutocompleteResults(query, null);
+            appendSupportedResults(filteredResults, seenPlaceIds, fallbackResults);
+        }
+
+        return filteredResults;
     }
 
     @Override
@@ -239,5 +239,148 @@ public class GoongMapService implements MapService {
                 .replaceAll("\\p{M}+", "");
         String normalized = sanitized.replaceAll("^(?i)(tinh|thanh pho|quan|huyen|thi xa|phuong|xa|thi tran)\\s+", "");
         return normalized.trim();
+    }
+
+    private List<CityBias> prioritizeCities(String normalizedQuery) {
+        List<CityBias> prioritized = new ArrayList<>(SUPPORTED_CITIES);
+        for (CityBias city : SUPPORTED_CITIES) {
+            if (city.matches(normalizedQuery)) {
+                prioritized.remove(city);
+                prioritized.add(0, city);
+                break;
+            }
+        }
+        return prioritized;
+    }
+
+    private List<MapPlaceDTO> fetchAutocompleteResults(String query, CityBias cityBias) {
+        try {
+            UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(autocompleteUrl)
+                    .queryParam("api_key", apiKey)
+                    .queryParam("input", query);
+
+            if (cityBias != null) {
+                builder.queryParam("location", cityBias.latitude() + "," + cityBias.longitude())
+                        .queryParam("radius", cityBias.radiusMeters());
+            }
+
+            JsonNode response = restTemplate.getForObject(builder.toUriString(), JsonNode.class);
+            return extractPredictions(response);
+        } catch (RestClientException e) {
+            log.error("Error calling Goong Autocomplete API for {}", cityBias != null ? cityBias.id() : "default", e);
+            return List.of();
+        }
+    }
+
+    private List<MapPlaceDTO> extractPredictions(JsonNode response) {
+        List<MapPlaceDTO> results = new ArrayList<>();
+
+        if (response != null && response.has("predictions")) {
+            for (JsonNode prediction : response.get("predictions")) {
+                String description = prediction.path("description").asText("");
+
+                if (!StringUtils.hasText(description)) {
+                    continue;
+                }
+                if (description.contains("http://") || description.contains("https://")) {
+                    continue;
+                }
+
+                JsonNode formatting = prediction.path("structured_formatting");
+                results.add(MapPlaceDTO.builder()
+                        .placeId(prediction.path("place_id").asText(""))
+                        .description(description)
+                        .mainText(formatting.path("main_text").asText(""))
+                        .secondaryText(formatting.path("secondary_text").asText(""))
+                        .build());
+            }
+        }
+        return results;
+    }
+
+    private void appendResultsForCity(List<MapPlaceDTO> target,
+                                      Set<String> seenPlaceIds,
+                                      List<MapPlaceDTO> candidates,
+                                      CityBias cityBias) {
+        for (MapPlaceDTO place : candidates) {
+            if (!isInCity(place, cityBias)) {
+                continue;
+            }
+            if (seenPlaceIds.add(place.getPlaceId())) {
+                target.add(place);
+            }
+        }
+    }
+
+    private void appendSupportedResults(List<MapPlaceDTO> target,
+                                        Set<String> seenPlaceIds,
+                                        List<MapPlaceDTO> candidates) {
+        for (MapPlaceDTO place : candidates) {
+            if (!isInSupportedCities(place)) {
+                continue;
+            }
+            if (seenPlaceIds.add(place.getPlaceId())) {
+                target.add(place);
+            }
+        }
+    }
+
+    private boolean isInCity(MapPlaceDTO place, CityBias cityBias) {
+        if (place == null || cityBias == null) {
+            return false;
+        }
+        String normalized = normalizeForMatch(buildSearchableText(place));
+        return cityBias.matches(normalized);
+    }
+
+    private boolean isInSupportedCities(MapPlaceDTO place) {
+        if (place == null) {
+            return false;
+        }
+        String normalized = normalizeForMatch(buildSearchableText(place));
+        for (CityBias city : SUPPORTED_CITIES) {
+            if (city.matches(normalized)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String buildSearchableText(MapPlaceDTO place) {
+        StringBuilder text = new StringBuilder();
+        if (StringUtils.hasText(place.getDescription())) {
+            text.append(place.getDescription()).append(' ');
+        }
+        if (StringUtils.hasText(place.getSecondaryText())) {
+            text.append(place.getSecondaryText());
+        }
+        return text.toString();
+    }
+
+    private String normalizeForMatch(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String noDiacritics = Normalizer.normalize(value, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "");
+        return noDiacritics
+                .replaceAll("[^a-zA-Z0-9\\s]", " ")
+                .replaceAll("\\s+", " ")
+                .trim()
+                .toLowerCase();
+    }
+
+    private record CityBias(String id, List<String> normalizedKeywords, double latitude, double longitude, int radiusMeters) {
+        boolean matches(String normalizedText) {
+            if (!StringUtils.hasText(normalizedText)) {
+                return false;
+            }
+            for (String keyword : normalizedKeywords) {
+                if (normalizedText.contains(keyword)) {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 }

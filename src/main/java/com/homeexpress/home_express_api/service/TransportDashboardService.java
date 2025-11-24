@@ -92,10 +92,6 @@ public class TransportDashboardService {
                 .map(Quotation::getBookingId)
                 .collect(Collectors.toSet()));
 
-        Map<Long, Customer> customersById = loadCustomers(bookingsById.values().stream()
-                .map(Booking::getCustomerId)
-                .collect(Collectors.toSet()));
-
         // Load all quotations for these bookings to calculate competitors and rankings
         Set<Long> bookingIds = page.stream()
             .map(Quotation::getBookingId)

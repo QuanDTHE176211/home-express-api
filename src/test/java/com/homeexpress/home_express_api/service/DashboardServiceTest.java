@@ -71,6 +71,7 @@ class DashboardServiceTest {
                 .thenReturn(100L)
                 .thenReturn(80L);
         when(transportRepository.countByVerificationStatus(VerificationStatus.PENDING)).thenReturn(15L);
+        when(transportRepository.countByVerificationStatus(VerificationStatus.APPROVED)).thenReturn(120L);
         when(transportRepository.findByVerificationStatusOrderByAverageRatingDesc(VerificationStatus.APPROVED))
                 .thenReturn(topTransports);
 
@@ -84,6 +85,7 @@ class DashboardServiceTest {
         assertEquals(900L, result.getActiveUsers());
         assertEquals(100L, result.getInactiveUsers());
         assertEquals(850L, result.getVerifiedUsers());
+        assertEquals(120L, result.getVerifiedTransports());
         assertEquals(10L, result.getNewUsersToday());
         assertEquals(50L, result.getNewUsersThisWeek());
         assertEquals(100L, result.getNewUsersThisMonth());
@@ -108,6 +110,7 @@ class DashboardServiceTest {
                 .thenReturn(50L)
                 .thenReturn(40L);
         when(transportRepository.countByVerificationStatus(VerificationStatus.PENDING)).thenReturn(10L);
+        when(transportRepository.countByVerificationStatus(VerificationStatus.APPROVED)).thenReturn(75L);
         when(transportRepository.findByVerificationStatusOrderByAverageRatingDesc(VerificationStatus.APPROVED))
                 .thenReturn(topTransports);
 
@@ -121,6 +124,7 @@ class DashboardServiceTest {
         assertEquals(450L, result.get("activeUsers"));
         assertEquals(50L, result.get("inactiveUsers"));
         assertEquals(420L, result.get("verifiedUsers"));
+        assertEquals(75L, result.get("verifiedTransports"));
         assertEquals(5L, result.get("newUsersToday"));
         assertEquals(25L, result.get("newUsersThisWeek"));
         assertEquals(50L, result.get("newUsersThisMonth"));
@@ -142,6 +146,7 @@ class DashboardServiceTest {
                 .thenReturn(0L)
                 .thenReturn(0L);
         when(transportRepository.countByVerificationStatus(VerificationStatus.PENDING)).thenReturn(0L);
+        when(transportRepository.countByVerificationStatus(VerificationStatus.APPROVED)).thenReturn(0L);
         when(transportRepository.findByVerificationStatusOrderByAverageRatingDesc(VerificationStatus.APPROVED))
                 .thenReturn(new ArrayList<>());
 

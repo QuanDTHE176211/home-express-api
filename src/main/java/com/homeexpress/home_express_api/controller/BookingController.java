@@ -146,7 +146,7 @@ public class BookingController {
         User user = AuthenticationUtils.getUser(authentication, userRepository);
 
         // Check if user has access to this booking
-        BookingResponse booking = bookingService.getBookingById(id, user.getUserId(), user.getRole());
+        bookingService.getBookingById(id, user.getUserId(), user.getRole());
 
         List<QuotationResponse> quotations = bookingService.getBookingQuotations(id, user.getUserId(), user.getRole());
 

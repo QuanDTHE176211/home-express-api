@@ -18,9 +18,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleResourceNotFound(ResourceNotFoundException ex) {
         ErrorResponse error = new ErrorResponse(
-            HttpStatus.NOT_FOUND.value(),
-            ex.getMessage(),
-            LocalDateTime.now()
+                HttpStatus.NOT_FOUND.value(),
+                ex.getMessage(),
+                LocalDateTime.now()
         );
         return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
     }
@@ -29,9 +29,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ErrorResponse> handleUnauthorized(UnauthorizedException ex) {
         ErrorResponse error = new ErrorResponse(
-            HttpStatus.FORBIDDEN.value(),
-            ex.getMessage(),
-            LocalDateTime.now()
+                HttpStatus.FORBIDDEN.value(),
+                ex.getMessage(),
+                LocalDateTime.now()
         );
         return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
     }
@@ -40,9 +40,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<ErrorResponse> handleBadRequest(BadRequestException ex) {
         ErrorResponse error = new ErrorResponse(
-            HttpStatus.BAD_REQUEST.value(),
-            ex.getMessage(),
-            LocalDateTime.now()
+                HttpStatus.BAD_REQUEST.value(),
+                ex.getMessage(),
+                LocalDateTime.now()
         );
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
@@ -63,15 +63,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGlobalException(Exception ex) {
         ErrorResponse error = new ErrorResponse(
-            HttpStatus.INTERNAL_SERVER_ERROR.value(),
-            "Có lỗi xảy ra: " + ex.getMessage(),
-            LocalDateTime.now()
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                "Chú ý: " + ex.getMessage(),
+                LocalDateTime.now()
         );
         return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
     }
-    
+
     // Class cho error response
     static class ErrorResponse {
+
         private int status;
         private String message;
         private LocalDateTime timestamp;

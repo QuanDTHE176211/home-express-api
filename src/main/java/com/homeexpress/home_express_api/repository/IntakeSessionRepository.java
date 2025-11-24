@@ -30,4 +30,12 @@ public interface IntakeSessionRepository extends JpaRepository<IntakeSession, St
     @Modifying
     @Query("DELETE FROM IntakeSession s WHERE s.status = 'expired' AND s.updatedAt < :before")
     int deleteExpiredSessions(LocalDateTime before);
+
+    long countByStatus(String status);
+
+    @Query("SELECT AVG(s.averageConfidence) FROM IntakeSession s WHERE s.status = :status")
+    Double getAverageConfidenceByStatus(String status);
+
+    @Query("SELECT MIN(s.createdAt) FROM IntakeSession s WHERE s.status = :status")
+    LocalDateTime getOldestCreatedAtByStatus(String status);
 }

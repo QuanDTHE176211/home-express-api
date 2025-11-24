@@ -95,9 +95,6 @@ public class Quotation {
     @Column(name = "accepted_ip", length = 45)
     private String acceptedIp;
 
-    @Column(name = "accepted_booking_id", insertable = false, updatable = false)
-    private Long acceptedBookingId;
-
     @Column(name = "created_at", updatable = false, insertable = false)
     private LocalDateTime createdAt;
 
@@ -258,13 +255,6 @@ public class Quotation {
         this.acceptedIp = acceptedIp;
     }
 
-    public Long getAcceptedBookingId() {
-        return acceptedBookingId;
-    }
-
-    public void setAcceptedBookingId(Long acceptedBookingId) {
-        this.acceptedBookingId = acceptedBookingId;
-    }
 
     public LocalDateTime getCreatedAt() {
         return createdAt;

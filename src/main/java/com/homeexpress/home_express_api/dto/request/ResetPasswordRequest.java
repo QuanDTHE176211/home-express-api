@@ -1,9 +1,19 @@
 package com.homeexpress.home_express_api.dto.request;
 
+import com.homeexpress.home_express_api.constants.PasswordValidationConstants;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+
 public class ResetPasswordRequest {
     
     private String email;
+    
+    @NotBlank(message = PasswordValidationConstants.PASSWORD_REQUIRED_MESSAGE)
+    @Size(min = PasswordValidationConstants.MIN_LENGTH, message = PasswordValidationConstants.PASSWORD_MIN_LENGTH_MESSAGE)
+    @Pattern(regexp = PasswordValidationConstants.PASSWORD_REGEX, message = PasswordValidationConstants.PASSWORD_COMPLEXITY_MESSAGE)
     private String newPassword;
+    
     private String otpCode;
 
     public ResetPasswordRequest() {}

@@ -6,6 +6,7 @@ import com.homeexpress.home_express_api.dto.request.RegisterRequest;
 import com.homeexpress.home_express_api.dto.response.AuthResponse;
 import com.homeexpress.home_express_api.dto.response.UserResponse;
 import com.homeexpress.home_express_api.entity.*;
+import com.homeexpress.home_express_api.exception.UnauthorizedException;
 import com.homeexpress.home_express_api.repository.*;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -159,21 +160,21 @@ public class AuthService {
         
         // 1. tim user
         User user = userRepository.findByEmail(email)
-            .orElseThrow(() -> new RuntimeException("Invalid email or password"));
+            .orElseThrow(() -> new UnauthorizedException("Invalid email or password"));
         
         // 2. check account active
         if (!user.getIsActive()) {
-            throw new RuntimeException("Account is disabled. Contact admin.");
+            throw new UnauthorizedException("Account is disabled. Contact admin.");
         }
 
         // 3. check email verified
         if (!user.getIsVerified()) {
-            throw new RuntimeException("Email not verified. Please verify your email.");
+            throw new UnauthorizedException("Email not verified. Please verify your email.");
         }
         
         // 4. verify password
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            throw new RuntimeException("Invalid email or password");
+            throw new UnauthorizedException("Invalid email or password");
         }
         
         // 7. update last login

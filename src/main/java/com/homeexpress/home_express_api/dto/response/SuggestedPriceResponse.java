@@ -13,6 +13,7 @@ public class SuggestedPriceResponse {
     private BigDecimal suggestedPrice;
     private PriceBreakdown priceBreakdown;
     private Long rateCardId;
+    private Long vehiclePricingId;
     private Long categoryId;
     private LocalDateTime calculationTimestamp;
 
@@ -38,6 +39,14 @@ public class SuggestedPriceResponse {
 
     public void setRateCardId(Long rateCardId) {
         this.rateCardId = rateCardId;
+    }
+
+    public Long getVehiclePricingId() {
+        return vehiclePricingId;
+    }
+
+    public void setVehiclePricingId(Long vehiclePricingId) {
+        this.vehiclePricingId = vehiclePricingId;
     }
 
     public Long getCategoryId() {

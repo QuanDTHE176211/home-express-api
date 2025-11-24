@@ -1,11 +1,17 @@
 package com.homeexpress.home_express_api.controller;
 
 import com.homeexpress.home_express_api.dto.request.TransportVerificationRequest;
+import com.homeexpress.home_express_api.dto.response.ApiResponse;
 import com.homeexpress.home_express_api.dto.response.TransportVerificationListResponse;
+import com.homeexpress.home_express_api.dto.response.VehicleListResponse;
+import com.homeexpress.home_express_api.dto.response.VehicleResponse;
 import com.homeexpress.home_express_api.entity.Transport;
 import com.homeexpress.home_express_api.entity.User;
+import com.homeexpress.home_express_api.entity.Vehicle;
+import com.homeexpress.home_express_api.entity.VehicleStatus;
 import com.homeexpress.home_express_api.entity.VerificationStatus;
 import com.homeexpress.home_express_api.repository.UserRepository;
+import com.homeexpress.home_express_api.repository.VehicleRepository;
 import com.homeexpress.home_express_api.service.TransportService;
 import com.homeexpress.home_express_api.util.AuthenticationUtils;
 import jakarta.validation.Valid;
@@ -13,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -27,6 +34,8 @@ import lombok.RequiredArgsConstructor;
 public class AdminTransportController {
 
     private final TransportService transportService;
+
+    private final VehicleRepository vehicleRepository;
 
     private final UserRepository userRepository;
 
@@ -53,36 +62,10 @@ public class AdminTransportController {
             @RequestParam(defaultValue = "10") int limit,
             @RequestParam(required = false) String search) {
         
-        List<Transport> transports;
-        if (status != null) {
-            transports = transportService.getTransportsByStatus(status);
-        } else {
-            transports = transportService.getAllTransports();
-        }
-
-        // Filter by search if provided
-        if (search != null && !search.isEmpty()) {
-            String searchLower = search.toLowerCase();
-            transports = transports.stream()
-                    .filter(t -> t.getCompanyName().toLowerCase().contains(searchLower) ||
-                                 t.getBusinessLicenseNumber().toLowerCase().contains(searchLower) ||
-                                 (t.getUser() != null && t.getUser().getEmail().toLowerCase().contains(searchLower)))
-                    .collect(Collectors.toList());
-        }
-
-        // Calculate pagination
-        int total = transports.size();
-        int totalPages = (int) Math.ceil((double) total / limit);
-        int startIndex = (page - 1) * limit;
-        int endIndex = Math.min(startIndex + limit, total);
-
-        List<Transport> paginatedTransports = transports.subList(
-                Math.max(0, startIndex),
-                Math.max(0, endIndex)
-        );
+        Page<Transport> transportsPage = transportService.searchTransports(status, search, page, limit);
 
         // Map to DTO
-        List<TransportVerificationListResponse.TransportWithUser> data = paginatedTransports.stream()
+        List<TransportVerificationListResponse.TransportWithUser> data = transportsPage.getContent().stream()
                 .map(transport -> {
                     TransportVerificationListResponse.TransportInfo transportInfo =
                             TransportVerificationListResponse.TransportInfo.builder()
@@ -97,8 +80,13 @@ public class AdminTransportController {
                                     .nationalIdType(transport.getNationalIdType() != null ? transport.getNationalIdType().name() : null)
                                     .nationalIdNumber(transport.getNationalIdNumber())
                                     .bankCode(transport.getBankCode())
+                                    .bankName(transport.getBankName()) // Added
                                     .bankAccountNumber(transport.getBankAccountNumber())
                                     .bankAccountHolder(transport.getBankAccountHolder())
+                                    .licensePhotoUrl(transport.getLicensePhotoUrl()) // Added
+                                    .insurancePhotoUrl(transport.getInsurancePhotoUrl()) // Added
+                                    .nationalIdPhotoFrontUrl(transport.getNationalIdPhotoFrontUrl()) // Added
+                                    .nationalIdPhotoBackUrl(transport.getNationalIdPhotoBackUrl()) // Added
                                     .verificationStatus(transport.getVerificationStatus())
                                     .verifiedAt(transport.getVerifiedAt())
                                     .verificationNotes(transport.getVerificationNotes())
@@ -126,10 +114,10 @@ public class AdminTransportController {
 
         TransportVerificationListResponse response = TransportVerificationListResponse.builder()
                 .data(data)
-                .total(total)
+                .total((int) transportsPage.getTotalElements())
                 .page(page)
                 .limit(limit)
-                .totalPages(totalPages)
+                .totalPages(transportsPage.getTotalPages())
                 .build();
 
         return ResponseEntity.ok(response);
@@ -140,6 +128,45 @@ public class AdminTransportController {
     public ResponseEntity<Transport> getTransportById(@PathVariable Long id) {
         Transport transport = transportService.getTransportById(id);
         return ResponseEntity.ok(transport);
+    }
+
+    @GetMapping("/{id}/vehicles")
+    @PreAuthorize("hasRole('MANAGER')")
+    public ResponseEntity<ApiResponse<VehicleListResponse>> getTransportVehicles(
+            @PathVariable Long id,
+            @RequestParam(required = false) VehicleStatus status,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        // Ensure transport exists
+        transportService.getTransportById(id);
+
+        List<Vehicle> vehicles = status != null
+                ? vehicleRepository.findByTransportTransportIdAndStatus(id, status)
+                : vehicleRepository.findByTransportTransportId(id);
+
+        int totalItems = vehicles.size();
+        int totalPages = (int) Math.ceil((double) totalItems / size);
+        int startIndex = Math.max(0, (page - 1) * size);
+        int endIndex = Math.min(startIndex + size, totalItems);
+
+        List<VehicleResponse> paginatedVehicles = vehicles.stream()
+                .skip(startIndex)
+                .limit(Math.max(0, endIndex - startIndex))
+                .map(VehicleResponse::fromEntity)
+                .toList();
+
+        VehicleListResponse listResponse = VehicleListResponse.builder()
+                .vehicles(paginatedVehicles)
+                .pagination(VehicleListResponse.Pagination.builder()
+                        .currentPage(page)
+                        .totalPages(totalPages)
+                        .totalItems(totalItems)
+                        .itemsPerPage(size)
+                        .build())
+                .build();
+
+        return ResponseEntity.ok(ApiResponse.success(listResponse));
     }
 
     @PatchMapping("/{id}/verify")
@@ -208,4 +235,3 @@ public class AdminTransportController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user not found"));
     }
 }
-

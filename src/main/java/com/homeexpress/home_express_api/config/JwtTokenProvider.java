@@ -15,13 +15,13 @@ public class JwtTokenProvider {
     private final SecretKey secretKey = Jwts.SIG.HS512.key().build();
 
     // Thoi gian het han token: 24 gio
-    private final long jwtExpirationMs = 86400000L; // 24 hours
-    private final long refreshTokenExpirationMs = 604800000L; // 7 days
+    private static final long JWT_EXPIRATION_MS = 86400000L; // 24 hours
+    private static final long REFRESH_TOKEN_EXPIRATION_MS = 604800000L; // 7 days
 
     // Tao JWT token
     public String generateToken(Long userId, String email, String role) {
         Date now = new Date();
-        Date expiryDate = new Date(now.getTime() + jwtExpirationMs);
+        Date expiryDate = new Date(now.getTime() + JWT_EXPIRATION_MS);
 
         return Jwts.builder()
                 .subject(userId.toString()) // User ID
@@ -32,6 +32,7 @@ public class JwtTokenProvider {
                 .signWith(secretKey, Jwts.SIG.HS512)
                 .compact();
     }
+
 
     // Lay user ID tu token
     public Long getUserIdFromToken(String token) {
@@ -57,7 +58,7 @@ public class JwtTokenProvider {
     // Generate refresh token
     public String generateRefreshToken(Long userId) {
         Date now = new Date();
-        Date expiryDate = new Date(now.getTime() + refreshTokenExpirationMs);
+        Date expiryDate = new Date(now.getTime() + REFRESH_TOKEN_EXPIRATION_MS);
 
         return Jwts.builder()
                 .subject(userId.toString())
@@ -69,7 +70,7 @@ public class JwtTokenProvider {
 
     // Get refresh token expiration
     public long getRefreshTokenExpiration() {
-        return refreshTokenExpirationMs;
+        return REFRESH_TOKEN_EXPIRATION_MS;
     }
 
     // Get role from token

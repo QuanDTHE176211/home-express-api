@@ -58,7 +58,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/auth/**").permitAll() // Cho phep truy cap cac endpoint auth khong can login
                 .requestMatchers("/api/v1/locations/**").permitAll() // Cho phep truy cap location api
                 .requestMatchers("/api/v1/map/**").permitAll() // Cho phep truy cap map api (autocomplete)
+                .requestMatchers("/api/payments/webhook/**").permitAll() // Webhook PayOS
                 .requestMatchers("/uploads/**").permitAll() // Cho phep truy cap file upload
+                .requestMatchers("/api/v1/estimation/**").permitAll() // Cho phep goi estimation khong can login
                 .requestMatchers("/swagger-ui/**").permitAll()
                 .requestMatchers("/v3/api-docs/**").permitAll()
                 .requestMatchers("/v3/api-docs/swagger-config").permitAll()
@@ -91,4 +93,3 @@ public class SecurityConfig {
         return source;
     }
 }
-

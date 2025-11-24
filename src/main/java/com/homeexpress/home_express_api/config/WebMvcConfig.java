@@ -11,16 +11,13 @@ import java.nio.file.Paths;
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
 
-    @Value("${file.upload.dir:uploads/avatars}")
+    @Value("${file.upload.dir:uploads}")
     private String uploadDir;
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // Map /uploads/** to the parent directory of the upload directory (which is .../uploads)
-        // uploadDir is usually .../uploads/avatars, so we want to serve from .../uploads/
-        // This allows accessing /uploads/avatars/filename.png via /uploads/avatars/filename.png URL
-        Path parentPath = Paths.get(uploadDir).toAbsolutePath().normalize().getParent();
+        Path uploadPath = Paths.get(uploadDir).toAbsolutePath().normalize();
         registry.addResourceHandler("/uploads/**")
-                .addResourceLocations("file:" + parentPath.toString().replace("\\", "/") + "/");
+                .addResourceLocations("file:" + uploadPath.toString().replace("\\", "/") + "/");
     }
 }

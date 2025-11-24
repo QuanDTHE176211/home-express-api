@@ -4,6 +4,7 @@ import com.homeexpress.home_express_api.dto.intake.ItemCandidateDto;
 import com.homeexpress.home_express_api.dto.intake.PublishSessionRequest;
 import com.homeexpress.home_express_api.dto.response.AdminIntakeSessionDetailResponse;
 import com.homeexpress.home_express_api.dto.response.AdminIntakeSessionListResponse;
+import com.homeexpress.home_express_api.dto.response.AdminIntakeSessionStatsResponse;
 import com.homeexpress.home_express_api.entity.User;
 import com.homeexpress.home_express_api.entity.UserRole;
 import com.homeexpress.home_express_api.repository.UserRepository;
@@ -56,6 +57,23 @@ public class AdminIntakeSessionController {
 
         AdminIntakeSessionListResponse response = adminIntakeSessionService.listSessions(
                 status, customerId, page, size);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Get session statistics
+     */
+    @GetMapping("/stats")
+    public ResponseEntity<AdminIntakeSessionStatsResponse> getSessionStats(
+            @RequestParam(required = false, defaultValue = "NEEDS_REVIEW") String status,
+            Authentication authentication) {
+        
+        User user = AuthenticationUtils.getUser(authentication, userRepository);
+        if (user.getRole() != UserRole.MANAGER) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        AdminIntakeSessionStatsResponse response = adminIntakeSessionService.getSessionStats(status);
         return ResponseEntity.ok(response);
     }
 

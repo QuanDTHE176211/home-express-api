@@ -1,8 +1,6 @@
 package com.homeexpress.home_express_api.controller;
 
 import com.homeexpress.home_express_api.dto.booking.BookingItemSummaryResponse;
-import com.homeexpress.home_express_api.dto.booking.BookingItemsPersistResponse;
-import com.homeexpress.home_express_api.dto.request.DetectedItemsPersistRequest;
 import com.homeexpress.home_express_api.dto.response.ApiResponse;
 import com.homeexpress.home_express_api.entity.Booking;
 import com.homeexpress.home_express_api.entity.User;
@@ -79,50 +77,6 @@ public class BookingItemController {
             log.error("Unexpected error while loading booking {} items: {}", bookingId, ex.getMessage(), ex);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error("Failed to load booking items"));
-        }
-    }
-
-    @PostMapping("/detected")
-    @PreAuthorize("hasAnyRole('CUSTOMER','MANAGER')")
-    public ResponseEntity<ApiResponse<BookingItemsPersistResponse>> persistDetectedItems(
-        @PathVariable Long bookingId,
-        @Valid @RequestBody DetectedItemsPersistRequest request,
-        Authentication authentication
-    ) {
-        try {
-            User user = AuthenticationUtils.getUser(authentication, userRepository);
-
-            if (user.getRole() == UserRole.CUSTOMER) {
-                Booking booking = bookingRepository.findById(bookingId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Booking", "id", bookingId));
-
-                if (!booking.getCustomerId().equals(user.getUserId())) {
-                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(ApiResponse.error("You are not allowed to modify this booking"));
-                }
-            }
-
-            BookingItemsPersistResponse response = bookingItemService.persistDetectedItems(
-                bookingId,
-                request.getDetectionResult(),
-                request.isReplaceExisting()
-            );
-
-            return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(response, "Detected items persisted successfully"));
-
-        } catch (ResourceNotFoundException ex) {
-            log.warn("Failed to persist detected items for booking {}: {}", bookingId, ex.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ApiResponse.error(ex.getMessage()));
-        } catch (IllegalArgumentException ex) {
-            log.warn("Invalid detected items payload for booking {}: {}", bookingId, ex.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error(ex.getMessage()));
-        } catch (Exception ex) {
-            log.error("Unexpected error while persisting detected items for booking {}: {}", bookingId, ex.getMessage(), ex);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("Failed to persist detected items"));
         }
     }
 }

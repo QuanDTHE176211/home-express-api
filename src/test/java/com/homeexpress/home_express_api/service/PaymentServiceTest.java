@@ -55,6 +55,9 @@ class PaymentServiceTest {
     private BookingSettlementRepository settlementRepository;
 
     @Mock
+    private BookingStatusHistoryRepository statusHistoryRepository;
+
+    @Mock
     private CommissionService commissionService;
 
     @Mock

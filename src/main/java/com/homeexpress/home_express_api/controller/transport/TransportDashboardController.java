@@ -1,6 +1,7 @@
 package com.homeexpress.home_express_api.controller.transport;
 
 import com.homeexpress.home_express_api.dto.request.SubmitQuotationRequest;
+import com.homeexpress.home_express_api.dto.response.QuotationResponse;
 import com.homeexpress.home_express_api.dto.response.TransportDashboardStatsResponse;
 import com.homeexpress.home_express_api.dto.response.TransportQuotationSummaryResponse;
 import com.homeexpress.home_express_api.entity.User;
@@ -9,7 +10,6 @@ import com.homeexpress.home_express_api.repository.UserRepository;
 import com.homeexpress.home_express_api.service.QuotationService;
 import com.homeexpress.home_express_api.service.TransportDashboardService;
 import com.homeexpress.home_express_api.util.AuthenticationUtils;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -58,19 +58,19 @@ public class TransportDashboardController {
     @PostMapping("/quotations")
     @PreAuthorize("hasRole('TRANSPORT')")
     public ResponseEntity<?> submitQuotation(
-    @Valid @RequestBody SubmitQuotationRequest request,
-    Authentication authentication) {
-    User user = AuthenticationUtils.getUser(authentication, userRepository);
-    if (!isTransport(user)) {
-    return forbidden();
-    }
+            @Valid @RequestBody SubmitQuotationRequest request,
+            Authentication authentication) {
+        User user = AuthenticationUtils.getUser(authentication, userRepository);
+        if (!isTransport(user)) {
+            return forbidden();
+        }
 
-    var response = quotationService.submitQuotation(request, user.getUserId());
-    return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
-        "quotationId", response.getQuotationId(),
-            "message", "Quotation submitted successfully",
-            "totalPrice", response.getQuotedPrice(),
-            "expiresAt", response.getExpiresAt()
+        QuotationResponse response = quotationService.submitQuotation(request, user.getUserId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                "quotationId", response.getQuotationId(),
+                "message", "Quotation submitted successfully",
+                "totalPrice", response.getQuotedPrice(),
+                "expiresAt", response.getExpiresAt()
         ));
     }
 

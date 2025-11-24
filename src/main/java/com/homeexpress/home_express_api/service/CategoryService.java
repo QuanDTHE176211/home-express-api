@@ -130,7 +130,7 @@ public class CategoryService {
      * Check if a category is being used in bookings
      */
     public Map<String, Object> checkCategoryUsage(Long categoryId) {
-        Category category = getCategoryById(categoryId);
+        getCategoryById(categoryId);
         
         // Count total items using this category
         Long totalItems = bookingItemRepository.countByCategoryCategoryId(categoryId);

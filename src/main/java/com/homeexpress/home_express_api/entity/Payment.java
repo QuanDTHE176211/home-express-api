@@ -78,6 +78,9 @@ public class Payment {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "metadata", columnDefinition = "JSON")
+    private String metadata;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
@@ -242,5 +245,13 @@ public class Payment {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getMetadata() {
+        return metadata;
+    }
+
+    public void setMetadata(String metadata) {
+        this.metadata = metadata;
     }
 }

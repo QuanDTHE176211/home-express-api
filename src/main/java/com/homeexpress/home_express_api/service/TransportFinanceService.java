@@ -63,7 +63,7 @@ public class TransportFinanceService {
         this.walletService = walletService;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public TransportEarningsStatsResponse getEarningsStats(Long transportId) {
         TransportWallet wallet = walletService.getOrCreateWallet(transportId);
         TransportEarningsStatsResponse response = new TransportEarningsStatsResponse();
@@ -71,6 +71,7 @@ public class TransportFinanceService {
         long totalBookings = bookingRepository.countByTransportIdAndStatus(transportId, BookingStatus.COMPLETED);
         response.setTotalBookings(totalBookings);
         response.setTotalEarnings(wallet.getTotalEarnedVnd());
+        response.setCurrentBalance(wallet.getCurrentBalanceVnd());
 
         YearMonth currentMonth = YearMonth.now();
         LocalDateTime monthStart = currentMonth.atDay(1).atStartOfDay();
@@ -121,7 +122,7 @@ public class TransportFinanceService {
         return response;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<TransportTransactionDto> getTransactions(Long transportId) {
         TransportWallet wallet = walletService.getOrCreateWallet(transportId);
         List<TransportWalletTransaction> ledger = walletTransactionRepository
@@ -133,7 +134,7 @@ public class TransportFinanceService {
                 .collect(Collectors.toList());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public TransportWalletReportResponse getWalletReport(Long transportId, Integer requestedDays) {
         int windowDays = resolveReportDays(requestedDays);
         TransportWallet wallet = walletService.getOrCreateWallet(transportId);

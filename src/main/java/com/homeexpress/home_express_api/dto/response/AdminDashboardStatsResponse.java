@@ -10,6 +10,7 @@ public class AdminDashboardStatsResponse {
     private long activeUsers;
     private long inactiveUsers;
     private long verifiedUsers;
+    private long verifiedTransports;
     private long newUsersToday;
     private long newUsersThisWeek;
     private long newUsersThisMonth;
@@ -71,6 +72,14 @@ public class AdminDashboardStatsResponse {
 
     public void setVerifiedUsers(long verifiedUsers) {
         this.verifiedUsers = verifiedUsers;
+    }
+
+    public long getVerifiedTransports() {
+        return verifiedTransports;
+    }
+
+    public void setVerifiedTransports(long verifiedTransports) {
+        this.verifiedTransports = verifiedTransports;
     }
 
     public long getNewUsersToday() {

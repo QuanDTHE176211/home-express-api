@@ -105,7 +105,7 @@ public class Booking {
 
     @NotNull
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 20)
+    @Column(name = "status", nullable = false, length = 32)
     private BookingStatus status = BookingStatus.PENDING;
 
     @Column(name = "notes", columnDefinition = "TEXT")

@@ -17,6 +17,12 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     List<Payment> findByBookingIdAndStatus(Long bookingId, PaymentStatus status);
 
+    java.util.Optional<Payment> findByTransactionId(String transactionId);
+
+    List<Payment> findByBookingIdAndPaymentTypeAndStatusInOrderByCreatedAtDesc(
+            Long bookingId, com.homeexpress.home_express_api.entity.PaymentType paymentType,
+            java.util.Collection<PaymentStatus> statuses);
+
     @Query("SELECT COALESCE(SUM(p.amount), 0) FROM Payment p " +
            "WHERE p.bookingId = :bookingId AND p.status = :status")
     BigDecimal sumAmountByBookingIdAndStatus(

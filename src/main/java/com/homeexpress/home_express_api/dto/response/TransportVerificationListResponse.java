@@ -47,6 +47,11 @@ public class TransportVerificationListResponse {
         private String bankCode;
         private String bankAccountNumber;
         private String bankAccountHolder;
+        private String bankName; // Added field
+        private String licensePhotoUrl; // Added field
+        private String insurancePhotoUrl; // Added field
+        private String nationalIdPhotoFrontUrl; // Added field
+        private String nationalIdPhotoBackUrl; // Added field
         private VerificationStatus verificationStatus;
         private LocalDateTime verifiedAt;
         private String verificationNotes;

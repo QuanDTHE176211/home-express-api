@@ -9,6 +9,7 @@ import com.homeexpress.home_express_api.entity.Manager;
 import com.homeexpress.home_express_api.entity.Transport;
 import com.homeexpress.home_express_api.entity.User;
 import com.homeexpress.home_express_api.entity.UserRole;
+import com.homeexpress.home_express_api.exception.BadRequestException;
 import com.homeexpress.home_express_api.exception.ResourceNotFoundException;
 import com.homeexpress.home_express_api.repository.CustomerRepository;
 import com.homeexpress.home_express_api.repository.ManagerRepository;
@@ -216,7 +217,21 @@ public class UserService {
             transport.setBankName(request.getBankName());
         }
         if (request.getBankCode() != null) {
-            transport.setBankCode(request.getBankCode());
+            String normalizedBankCode = normalizeBankCode(request.getBankCode());
+            if (StringUtils.hasText(normalizedBankCode)) {
+                if (!bankCodeExists(normalizedBankCode)) {
+                    throw new BadRequestException("Bank code is not supported. Please choose a valid Vietnamese bank.");
+                }
+                transport.setBankCode(normalizedBankCode);
+                if (request.getBankName() == null) {
+                    String bankName = lookupBankName(normalizedBankCode);
+                    if (bankName != null) {
+                        transport.setBankName(bankName);
+                    }
+                }
+            } else {
+                transport.setBankCode(null);
+            }
         }
         if (request.getBankAccountNumber() != null) {
             transport.setBankAccountNumber(request.getBankAccountNumber());
@@ -242,6 +257,29 @@ public class UserService {
         managerRepository.save(manager);
     }
 
+    private boolean bankCodeExists(String bankCode) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM vn_banks WHERE bank_code = ? AND is_active = TRUE",
+                Integer.class,
+                bankCode);
+        return count != null && count > 0;
+    }
+
+    private String lookupBankName(String bankCode) {
+        try {
+            return jdbcTemplate.queryForObject(
+                    "SELECT bank_name FROM vn_banks WHERE bank_code = ? AND is_active = TRUE",
+                    String.class,
+                    bankCode);
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private String normalizeBankCode(String bankCode) {
+        return bankCode != null ? bankCode.trim().toUpperCase() : null;
+    }
+
     private ProfileResponse buildProfileResponse(User user) {
         ProfileResponse response = new ProfileResponse();
         response.setUser(mapUserSummary(user));
@@ -252,6 +290,13 @@ public class UserService {
             case MANAGER -> response.setManager(mapManagerProfile(user.getUserId()));
         }
         return response;
+    }
+
+    @Transactional(readOnly = true)
+    public UserSummaryResponse getUserSummary(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+        return mapUserSummary(user);
     }
 
     private UserSummaryResponse mapUserSummary(User user) {
@@ -369,4 +414,3 @@ public class UserService {
         return response;
     }
 }
-

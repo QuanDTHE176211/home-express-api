@@ -48,6 +48,8 @@ public interface QuotationRepository extends JpaRepository<Quotation, Long> {
     @Query("SELECT q FROM Quotation q WHERE q.expiresAt < :now AND q.status = 'PENDING'")
     List<Quotation> findExpiredQuotations(@Param("now") LocalDateTime now);
 
+    Optional<Quotation> findTopByBookingIdAndStatusOrderByAcceptedAtDesc(Long bookingId, QuotationStatus status);
+
     @Procedure(name = "sp_accept_quotation")
     void acceptQuotation(
         @Param("p_quotation_id") Long quotationId,

@@ -57,6 +57,8 @@ public class DashboardService {
         long newUsersPreviousMonth = userRepository.countByCreatedAtBetween(previousMonthStartDateTime, previousMonthEndDateTime);
 
         double growthRate = calculateGrowthRate(newUsersMonth, newUsersPreviousMonth);
+        
+        long verifiedTransports = transportRepository.countByVerificationStatus(VerificationStatus.APPROVED);
 
         long pendingTransportVerifications = transportRepository.countByVerificationStatus(VerificationStatus.PENDING);
 
@@ -74,6 +76,7 @@ public class DashboardService {
         stats.setActiveUsers(activeUsers);
         stats.setInactiveUsers(totalUsers - activeUsers);
         stats.setVerifiedUsers(verifiedUsers);
+        stats.setVerifiedTransports(verifiedTransports);
         stats.setNewUsersToday(newUsersToday);
         stats.setNewUsersThisWeek(newUsersWeek);
         stats.setNewUsersThisMonth(newUsersMonth);
@@ -93,6 +96,7 @@ public class DashboardService {
         map.put("totalManagers", response.getTotalManagers());
         map.put("activeUsers", response.getActiveUsers());
         map.put("verifiedUsers", response.getVerifiedUsers());
+        map.put("verifiedTransports", response.getVerifiedTransports());
         map.put("inactiveUsers", response.getInactiveUsers());
         map.put("newUsersToday", response.getNewUsersToday());
         map.put("newUsersThisWeek", response.getNewUsersThisWeek());

@@ -104,12 +104,74 @@ public class SettlementService {
         settlement.setPlatformFeeVnd(amounts.platformFeeVnd);
         settlement.setAdjustmentVnd(0L);
         settlement.setCollectionMode(resolveCollectionMode(payments));
-        settlement.setStatus(SettlementStatus.READY);
-        settlement.setReadyAt(LocalDateTime.now());
+        settlement.setStatus(SettlementStatus.PENDING);
+        settlement.setReadyAt(null);
 
         BookingSettlement savedSettlement = settlementRepository.save(settlement);
-        creditSettlementToWallet(savedSettlement, amounts.netToTransportVnd);
+        // Removed auto-credit here. Credit happens only upon customer confirmation.
+        // creditSettlementToWallet(savedSettlement, amounts.netToTransportVnd);
         return mapToDTO(savedSettlement);
+    }
+
+    /**
+     * Process settlement after customer confirmation.
+     * Verifies eligibility, sets status to READY, and credits the wallet.
+     */
+    @Transactional
+    public SettlementDTO processSettlement(Long bookingId) {
+        BookingSettlement settlement = settlementRepository.findByBookingId(bookingId)
+                .orElseThrow(() -> new RuntimeException("Settlement not found for booking: " + bookingId));
+
+        if (settlement.getStatus() == SettlementStatus.READY || settlement.getStatus() == SettlementStatus.PAID) {
+            // Already processed
+            return mapToDTO(settlement);
+        }
+        if (settlement.getStatus() == SettlementStatus.CANCELLED) {
+            throw new RuntimeException("Settlement is cancelled and cannot be processed");
+        }
+
+        // Verify booking status (must be CONFIRMED_BY_CUSTOMER)
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Booking not found"));
+        
+        if (booking.getStatus() != BookingStatus.CONFIRMED_BY_CUSTOMER) {
+             // Fallback: If customer didn't confirm but somehow we are here (e.g. Admin force), allow COMPLETED
+             if (booking.getStatus() != BookingStatus.COMPLETED) {
+                 throw new RuntimeException("Booking must be CONFIRMED_BY_CUSTOMER to process settlement.");
+             }
+        }
+
+        // Verify fully paid
+        SettlementEligibilityDTO eligibility = checkEligibilityForSettlement(bookingId);
+        if (!eligibility.isEligible()) {
+            String reason = String.join("; ", eligibility.getReasons());
+            settlement.setOnHoldReason(reason);
+            if (eligibility.getOpenIncidentCount() > 0) {
+                settlement.setStatus(SettlementStatus.ON_HOLD);
+            }
+            settlementRepository.save(settlement);
+            throw new RuntimeException("Booking not eligible for settlement: " + reason);
+        }
+
+        BigDecimal totalCollected = paymentRepository.sumAmountByBookingIdAndStatus(
+                bookingId, PaymentStatus.COMPLETED);
+        long collected = totalCollected != null ? totalCollected.longValue() : 0L;
+        if (collected < settlement.getAgreedPriceVnd()) {
+            settlement.setOnHoldReason("Booking not fully paid. Collected " + collected + " VND");
+            settlementRepository.save(settlement);
+            throw new RuntimeException("Booking not fully paid. Cannot process settlement.");
+        }
+
+        settlement.setStatus(SettlementStatus.READY);
+        settlement.setReadyAt(LocalDateTime.now());
+        settlement.setOnHoldReason(null);
+        
+        BookingSettlement saved = settlementRepository.save(settlement);
+        
+        // Credit the wallet
+        creditSettlementToWallet(saved, resolveNetAmount(saved));
+        
+        return mapToDTO(saved);
     }
 
     /**
@@ -134,9 +196,9 @@ public class SettlementService {
 
         result.setBookingStatus(booking.getStatus().name());
 
-        if (booking.getStatus() != BookingStatus.COMPLETED) {
+        if (booking.getStatus() != BookingStatus.COMPLETED && booking.getStatus() != BookingStatus.CONFIRMED_BY_CUSTOMER) {
             result.setEligible(false);
-            result.addReason("Booking is not COMPLETED (current status: " + booking.getStatus() + ")");
+            result.addReason("Booking is not COMPLETED or CONFIRMED_BY_CUSTOMER (current status: " + booking.getStatus() + ")");
         }
 
         if (booking.getTransportId() == null) {
@@ -232,7 +294,6 @@ public class SettlementService {
         amounts.platformFeeVnd = commissionService.calculatePlatformFee(
                 amounts.agreedPriceVnd, booking.getTransportId()
         );
-
         amounts.netToTransportVnd = commissionService.calculateNetToTransport(
                 amounts.totalCollectedVnd,
                 amounts.gatewayFeeVnd,
@@ -393,6 +454,25 @@ public class SettlementService {
         public int commissionRateBps;
         public long platformFeeVnd;
         public long netToTransportVnd;
+    }
+
+    private long resolveNetAmount(BookingSettlement settlement) {
+        if (settlement == null) {
+            return 0L;
+        }
+        if (settlement.getNetToTransportVnd() != null) {
+            return settlement.getNetToTransportVnd();
+        }
+        return commissionService.calculateNetToTransport(
+                defaultZero(settlement.getTotalCollectedVnd()),
+                defaultZero(settlement.getGatewayFeeVnd()),
+                defaultZero(settlement.getPlatformFeeVnd()),
+                defaultZero(settlement.getAdjustmentVnd())
+        );
+    }
+
+    private long defaultZero(Long value) {
+        return value != null ? value : 0L;
     }
 
     private void creditSettlementToWallet(BookingSettlement settlement, Long overrideAmount) {

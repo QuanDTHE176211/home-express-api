@@ -36,6 +36,25 @@ public class TransportPayoutController {
 
     private final PayoutService payoutService;
 
+    @PostMapping("/request")
+    public ResponseEntity<?> requestPayout(Authentication authentication) {
+        User user = getUserFromAuth(authentication);
+        if (user.getRole() != UserRole.TRANSPORT) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Only transport companies can access this endpoint"));
+        }
+
+        try {
+            PayoutDTO payout = payoutService.createPayoutBatch(user.getUserId());
+            return ResponseEntity.ok(payout);
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to create payout request: " + e.getMessage()));
+        }
+    }
+
     @GetMapping
     public ResponseEntity<?> getMyPayouts(
             @RequestParam(defaultValue = "0") int page,

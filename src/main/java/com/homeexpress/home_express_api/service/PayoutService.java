@@ -68,14 +68,15 @@ public class PayoutService {
                 .findByTransportIdAndStatus(transportId, SettlementStatus.READY)
                 .stream()
                 .filter(settlement -> settlement.getPayoutId() == null)
+                .filter(settlement -> netAmount(settlement) > 0)
                 .collect(Collectors.toList());
 
         if (readySettlements.isEmpty()) {
-            throw new IllegalStateException("No READY settlements found for transport ID: " + transportId);
+            throw new IllegalStateException("No READY settlements with payable amount found for transport ID: " + transportId);
         }
 
         long totalAmount = readySettlements.stream()
-                .mapToLong(BookingSettlement::getNetToTransportVnd)
+                .mapToLong(this::netAmount)
                 .sum();
 
         TransportWallet wallet = walletService.getOrCreateWallet(transportId);
@@ -102,7 +103,7 @@ public class PayoutService {
             item.setPayoutId(savedPayout.getPayoutId());
             item.setSettlementId(settlement.getSettlementId());
             item.setBookingId(settlement.getBookingId());
-            item.setAmountVnd(settlement.getNetToTransportVnd());
+            item.setAmountVnd(netAmount(settlement));
             payoutItems.add(item);
 
             settlement.setPayoutId(savedPayout.getPayoutId());
@@ -143,6 +144,45 @@ public class PayoutService {
         }
 
         return createdPayouts;
+    }
+
+    /**
+     * Automatically sweep payouts for transports that meet the minimum balance threshold.
+     * Ready settlements are grouped per transport and turned into a payout batch.
+     */
+    @Transactional
+    public List<PayoutDTO> autoSweepPayouts(long minBalanceVnd) {
+        List<Long> transportIds = settlementRepository.findTransportsWithReadySettlements();
+        List<PayoutDTO> created = new ArrayList<>();
+
+        for (Long transportId : transportIds) {
+            List<BookingSettlement> readySettlements = settlementRepository
+                    .findByTransportIdAndStatus(transportId, SettlementStatus.READY)
+                    .stream()
+                    .filter(settlement -> settlement.getPayoutId() == null)
+                    .collect(Collectors.toList());
+
+            if (readySettlements.isEmpty()) {
+                continue;
+            }
+
+            long totalAmount = readySettlements.stream()
+                    .mapToLong(this::netAmount)
+                    .sum();
+
+            if (totalAmount < minBalanceVnd) {
+                continue;
+            }
+
+            try {
+                PayoutDTO payout = createPayoutBatch(transportId);
+                created.add(payout);
+            } catch (Exception ex) {
+                log.warn("Auto payout skipped for transport {}: {}", transportId, ex.getMessage());
+            }
+        }
+
+        return created;
     }
 
     /**
@@ -284,12 +324,14 @@ public class PayoutService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Generates a unique payout number.
-     *
-     * @param transportId the transport company ID
-     * @return unique payout number in format PO-{transportId}-{timestamp}
-     */
+    private long netAmount(BookingSettlement settlement) {
+        if (settlement == null) {
+            return 0L;
+        }
+        Long net = settlement.getNetToTransportVnd();
+        return net != null ? net : 0L;
+    }
+
     private String generatePayoutNumber(Long transportId) {
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
         String payoutNumber = String.format("PO-%d-%s", transportId, timestamp);
@@ -307,10 +349,6 @@ public class PayoutService {
      *
      * @param payoutId the failed payout ID
      */
-    private void rollbackSettlements(Long payoutId) {
-        rollbackSettlements(payoutId, false, null);
-    }
-
     private void rollbackSettlements(Long payoutId, boolean placeOnHold, String holdReason) {
         List<TransportPayoutItem> items = payoutItemRepository.findByPayoutId(payoutId);
 

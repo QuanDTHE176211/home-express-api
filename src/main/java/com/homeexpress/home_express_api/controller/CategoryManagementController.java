@@ -24,7 +24,7 @@ public class CategoryManagementController {
     private final CategoryService categoryService;
 
     @GetMapping
-    @PreAuthorize("hasRole('MANAGER')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'TRANSPORT', 'CUSTOMER')")
     public ResponseEntity<List<Category>> getAllCategories(
             @RequestParam(required = false, defaultValue = "false") boolean activeOnly) {
         
